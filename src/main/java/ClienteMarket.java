@@ -1,6 +1,7 @@
 import IndyLibraries.*;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.pool.Pool;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
@@ -12,6 +13,8 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
@@ -43,9 +46,9 @@ public class ClienteMarket {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Agent agentCliente = new Agent(pool,"cliente3",jsonStoredCred);
-        agentCliente.CreateWallet("walletCliente203","abcd");
-        agentCliente.OpenWallet("walletCliente203","abcd");
+        Agent agentCliente = new Agent(pool,"cliente7",jsonStoredCred);
+        agentCliente.CreateWallet("walletCliente206","abcd");
+        agentCliente.OpenWallet("walletCliente206","abcd");
         agentCliente.createDID();
         //open comunication with store
 
@@ -120,9 +123,27 @@ public class ClienteMarket {
         System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
         int portn=sc.nextInt();
 
-        Customer2Box box = new Customer2Box(agentCliente,"127.0.0.1",portn,"anonCustomer");
-        box.getItemFromBOX();
-
+        Customer2Box box = new Customer2Box(agentCliente,"127.0.0.1",
+                portn,"anonCustomer");
+        String itemFromBoxResult=box.getItemFromBOX();
+        boolean stop=false;
+        while( !( itemFromBoxResult.equals("Success") ||
+                itemFromBoxResult.equals("WrongTime") ) && !stop){
+            System.out.println("Wrong Box to ask for Item OR Box is Empty because Item has not arrived yet" +
+                    " , want to ask another box or the same box y/n?");
+            if(sc.next().equals("y")){
+                System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
+                portn=sc.nextInt();
+                box = new Customer2Box(agentCliente,"127.0.0.1",
+                        portn,"anonCustomer");
+                itemFromBoxResult=box.getItemFromBOX();
+            }
+            else{
+                stop=true;
+                agentCliente.proverDeleteCredential(itemFromBoxResult);//delete the credential
+                //identified by the credential id returned by getItemFromBox method
+            }
+        }
     }
 
 
@@ -168,7 +189,7 @@ class Customer2Box {
     public void askForConnectionToBox(){
         box2StoreDID = customerIndy.createDID2DIDComunication(customerName, boxAddress,this.ds);
     }
-    public boolean getItemFromBOX(){
+    public String getItemFromBOX(){
         JSONObject messageJOBJECT= new JSONObject();
         messageJOBJECT.put("request","GetItem0");
         //sending request for object
@@ -177,19 +198,26 @@ class Customer2Box {
         //receiving proof request
         String proofRequest = receiveMSG(ds);
         if(proofRequest.equals("Box is empty")){
-            return false;
+            System.out.println("Box is empty, customer arrived too late to collect item");
+            return "WrongTime";
         }
         else{
             System.out.println("LA PROOF REQUEST ARRIVATA!"+proofRequest);
-            String proofReq= new JSONObject(proofRequest).getString("proofrequest");
+            JSONObject proofreqstructure = new JSONObject(proofRequest);
+            String proofReq= proofreqstructure.getString("proofrequest");
+            ArrayList<String> requested_revealed=new ArrayList<String>(Arrays.asList(proofreqstructure.
+                    getJSONArray("requested_revealed_attributes").toList().
+                    toArray(String[]::new)));
             ProofAttributesFetched attributesFetched=
                     customerIndy.
                             returnProverSearchAttrForProof
-                                    (proofReq);
-            long currentTimeofproof= System.currentTimeMillis();
+                                    (proofReq,  requested_revealed);
+
+            String selfAttestedOpeningTime= String.valueOf(System.currentTimeMillis());
             ProofCreationExtra proof=customerIndy.proverCreateProof(attributesFetched,proofReq,
-                    null, attributesFetched.AttrtoReferenceList.toArray(String[]::new)
+                    new String[]{selfAttestedOpeningTime}, null
                     ,null,-1);
+
             //ProofCreationExtra proof= customerIndy.returnProverSearchAttrAndCreateProofSimple(proofReq,null,currentTimeofproof);
             //NOTE:Proof with predicates is really big, a device with little memory can't handle it
             System.out.println("Proof Dimension"+proof.proofJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
@@ -199,7 +227,18 @@ class Customer2Box {
             System.out.println("D2D proof message size (with cred_defs and schemas)"+ msg.length+" bytes");
             sendMSG(msg,this.boxAddress);
             String response=receiveMSG(ds);
-            return response.equals("Success");
+            boolean resultcheck = response.equals("Success");
+            if(resultcheck || response.equals("WrongTime")){
+                //if item is received correctly then customer deletes the credential relative to it
+                //(also deletes it if customer arrives late to get the package)
+                customerIndy.proverDeleteCredential(attributesFetched.credentialID.get(0));
+            }
+            else{
+                System.out.println("Wrong Box for the given credential");
+                response=attributesFetched.credentialID.get(0);//return the credential_id
+                //in the case the customer decides not to get the item from another box
+            }
+            return response;
         }
     }
     private void sendMSG(String msg,InetSocketAddress theirAddress) {

@@ -2,6 +2,8 @@ package IndyLibraries;
 
 import org.json.*;
 
+import java.util.HashMap;
+
 public class IndyJsonStringBuilder {
     private final static String emptyJson="{}";
 
@@ -118,7 +120,7 @@ public class IndyJsonStringBuilder {
 
     public static String getProofBody(String[]selfAttestedRef,String[] selfAttestedValue,String[]requestedAttributeRefent,
                                       String[] requestedAttributeCredId,
-                                      String[] requestedAttributeRevevaledOrNot,
+                                      HashMap<String,Boolean> requestedAttributeRevevaledOrNot,
                                       String[]requestedPredicatesRefent,
                                       String[] requestedPredicatesCredId,Long time){
         JSONObject jsonObject,jsonObject2;
@@ -142,7 +144,7 @@ public class IndyJsonStringBuilder {
             for (i = 0; i < requestedAttributeRefent.length; i++) {
                 //System.out.println("index i: "+ i + " " +requestedAttributeRefent.length + " "+requestedAttributeCredId.length + " "+ requestedAttributeRevevaledOrNot.length);
                 JSONObject toInsert= new JSONObject().put("cred_id", requestedAttributeCredId[i]).put("revealed",
-                        (Boolean) requestedAttributeRevevaledOrNot[i].equals("true"));
+                        (Boolean) requestedAttributeRevevaledOrNot.getOrDefault(requestedAttributeRefent[i],false));
                 if(time!=null){
                     toInsert.put("timestamp",time);
                 }

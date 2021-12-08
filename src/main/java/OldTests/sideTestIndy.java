@@ -187,7 +187,7 @@ public class sideTestIndy {
         timestampProofReq = demo2.getUnixTimeStamp();//new timestamp for proof req
 
 
-        ProofAttributesFetched proofStruct=Studente.returnProverSearchAttrForProof(proofReqbody);
+        ProofAttributesFetched proofStruct=Studente.returnProverSearchAttrForProof(proofReqbody,null);
         System.out.println("sizeo of credrevIDS "+proofStruct.AttrCREDENTIALRevRegIDs.size());
         ProofCreationExtra proffCreation= Studente.proverCreateProof(proofStruct,proofReqbody,null,
                 new String[]{"true"},timestampProofReq, revreg.blobStorageReaderHandle);

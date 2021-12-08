@@ -40,8 +40,8 @@ public class LockerBoxAgent implements Runnable {
         this.boxName=boxname;
         this.stop=false;
         this.isOccupied=false;
-        this.timestampreturnitem=null;
-        this.timestampcanopen=null;
+        this.timestampreturnitem=Long.MAX_VALUE;
+        this.timestampcanopen= Long.MIN_VALUE;
         this.addresstodid=new HashMap<>();
         this.currentTalkerStore=null;
         try {
@@ -104,6 +104,9 @@ public class LockerBoxAgent implements Runnable {
         this.timestampcanopen=null;
         this.addresstodid=new HashMap<>();
         this.currentTalkerStore=null;
+        this.timestampreturnitem=Long.MAX_VALUE;
+        this.timestampcanopen= Long.MIN_VALUE;
+
         try {
             Pool.setProtocolVersion(2).get();
             pool = Pool.openPoolLedger(poolName, "{}").get();
@@ -197,8 +200,15 @@ public class LockerBoxAgent implements Runnable {
 
                 return "Box is empty";
             }
-            this.lastProofRequest=askClientForProofRequest(addresstodid.get(currentTalkerStore));
-            String proofReq= new JSONObject().put("proofrequest",this.lastProofRequest).toString();
+            this.lastProofRequest=askClientForProofRequest();
+            JSONObject proofRequestStucture= new JSONObject();
+            proofRequestStucture.put("proofrequest",this.lastProofRequest);
+            //request attributes to be reavealed cant be done in the  proof request,
+            //it is part of  the communication protocol beetween lockerboxagent and client agent to ask for them
+            //and they are needed to open the box even if the proof is valid
+            proofRequestStucture.put("requested_revealed_attributes",new String[]
+                    {"attr0_referent"});
+            String proofReq= proofRequestStucture.toString(4);
 
             byte [] msg=IndyLockerBox.writeMessage(proofReq,addresstodid.get(currentTalkerStore));
             sendMSG(msg,currentTalkerStore);
@@ -212,7 +222,8 @@ public class LockerBoxAgent implements Runnable {
             String creddefsReceived=messageJOBJECT.getString("cred_defs");
             System.out.println("receivedProof"+ proofReceived);
             if(this.lastProofRequest==null){
-                byte [] msg=IndyLockerBox.writeMessage("request item first",addresstodid.get(currentTalkerStore));
+                byte [] msg=IndyLockerBox.writeMessage("request item first",
+                        addresstodid.get(currentTalkerStore));
                 sendMSG(msg,currentTalkerStore);
                 return "failure";
             }
@@ -220,24 +231,40 @@ public class LockerBoxAgent implements Runnable {
             IndyLockerBox.returnVerifierVerifyProofNOREVOCATION(proofrequestreceived,proofReceived,schemasReceived,creddefsReceived);
             System.out.println("Is credential Valid?:"+verifyRes+"\n");
             if(verifyRes) {
-                //Indy has his limis, the proof validity sadly doesn't guarantee
+                //Indy has his limits, the proof validity sadly doesn't guarantee
                 //that the attributes presented are supported by the right credential behind it
                 //if the customer somehow receives two shippingIDs less and greater than
-                // the stored item one and a morelikely two shippingnonce less and greater
+                // the stored item one
                 //than the current one then he could get the item
                 //A solution to that is to get the NONCE as a revealed attribute and do a check
                 //(outside of libindy)
-                byte[] msg = IndyLockerBox.writeMessage("Success", addresstodid.get(currentTalkerStore));
-                sendMSG(msg, currentTalkerStore);
-                this.isOccupied=false;
-                return "Success";
+                byte[] msg=null;
+                String openBoxResult=openBox(proofReceived);
+                if(openBoxResult.equals("Success")){
+                    msg = IndyLockerBox.writeMessage("Success", addresstodid.get(currentTalkerStore));
+                    this.isOccupied = false;
+                    sendMSG(msg, currentTalkerStore);
 
+                    return "Success proof is : \n"+proofReceived;
+
+                }
+                else if(openBoxResult.equals("InvalidProof")){
+                    msg = IndyLockerBox.writeMessage("WrongItem", addresstodid.get(currentTalkerStore));
+                    sendMSG(msg, currentTalkerStore);
+                    return "Failure proof is valid but not for the current Item";
+
+                }
+                else{
+                    msg = IndyLockerBox.writeMessage("WrongTime", addresstodid.get(currentTalkerStore));
+                    sendMSG(msg, currentTalkerStore);
+                    return "Failure proof is valid but Customer arrived too late";
+
+                }
             }
             else{
                 byte[] msg = IndyLockerBox.writeMessage("Failure, proof is not valid", addresstodid.get(currentTalkerStore));
                 sendMSG(msg, currentTalkerStore);
-                this.isOccupied=false;
-
+                this.isOccupied=true;
             }
             return "Failure";
         }
@@ -269,47 +296,6 @@ public class LockerBoxAgent implements Runnable {
         }
     }
 
-    private String askClientForProofRequest(String customerDID){
-        //send proof request to client!
-        //the proof request is designed such that the client needs to have the shippingid and diddest designed for the
-        //current item in the box, it is done by using Indy predicates
-        //the proof request also requests the LockerBoxID and the ItemName but those attributes can be also unrevealed
-        //(LockerBox does not need to know its contents)
-        Long currenttime=null;
-        int [] arr;
-        JSONObject []arrayofAttrreq = new JSONObject[4];
-        arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest("lockerboxid",null,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-        arrayofAttrreq[1] = IndyLockerBox.generateAttrInfoForProofRequest("itemname",null,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-
-        arrayofAttrreq[2] = IndyLockerBox.generateAttrInfoForProofRequest("diddest",null,null,null,null,null,
-
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-
-        arrayofAttrreq[3] = IndyLockerBox.generateAttrInfoForProofRequest("storedid",null,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-
-
-
-        JSONObject []arrayofPredReq = new JSONObject[4];
-        //since predicateType are only  "p_type": predicate type (">=", ">", "<=", "<")
-        //to enforce equality it is needed to creare a request with pred.type '>=' and  another with '<='
-        arrayofPredReq[0]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid",">=",this.shippingId,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-        arrayofPredReq[1]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid","<=",this.shippingId,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-
-        arrayofPredReq[2] = IndyLockerBox.generatePredicatesInfoForProofRequest("shippingnonce",">=",this.shippingNonce,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-        arrayofPredReq[3] = IndyLockerBox.generatePredicatesInfoForProofRequest("shippingnonce","<=",this.shippingNonce,null,null,null,null,
-                this.storedid,this.creddefid,null,currenttime,currenttime);
-
-       String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
-                ,"1.0","1.0",
-                arrayofAttrreq,arrayofPredReq,currenttime,currenttime);
-        return proofReqbody;
-    }
     private String receiveMSG(DatagramSocket dsock){
         byte[]datagramBuffer=new byte[65535];
         String didToDIDofIP,message;
@@ -366,4 +352,118 @@ public class LockerBoxAgent implements Runnable {
         }
         return message;
     }
+    private String askClientForProofRequest(){
+        //send proof request to client!
+        //the proof request is designed such that the client needs to have the shippingid and diddest designed for the
+        //current item in the box, it is done by using Indy predicates
+        //the proof request also requests the LockerBoxID and the ItemName but those attributes can be also unrevealed
+        //(LockerBox does not need to know its contents)
+        Long currenttime=null;
+        int [] arr;
+        JSONObject []arrayofAttrreq = new JSONObject[2];
+        //NOTE: the attribute shippingid,lockerboxid,shippingnoce attributes must be  revealed to check if it is the correct credential
+        // for the current idem.
+        arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest(null,
+                new String[]{"lockerboxid","shippingnonce"},
+        null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+        //the lockerbox also also time of opening must be given by the customer, time of opening is
+        //a self attested attribute that must also be revealed and will be used to check that the
+        //customer is opening the box in the allowed time
+        arrayofAttrreq[1] =IndyLockerBox.generateAttrInfoForProofRequest("openingTime",
+                null,null,null,null,
+                null,null,null,null,currenttime,currenttime);
+
+        //those predicates check are not a 100% correct proof because the customer could present an
+        // attribute that makes the predicates true but even if client owns a shipping_id1>=currentBOXshipping_id
+        // and shipping_id2<=currentBOXshipping it is not guranteed that shipping_id1 == shipping_id2
+        // equality CANT BE ENFORCED
+
+        JSONObject []arrayofPredReq = new JSONObject[2];
+        //Predicated: shippingid>= currentItemShippingId, it should loosely prove that the customer has the current shipped
+        //item credential, loosely because a client could have a credential with a shippingid>=itemshippingid and <=itemshippingid
+        //the predicate will be a preliminary check before checking the revealed attribute shippingnonce
+        //if predicates are false then LockerBox does not need to check the revealed attribute shippingnoce
+
+        //NOTE:in the ClientAgent shippingid will be equal to itemshippingid because the agent will throw away
+        //any used credential and will request only one item at a time
+
+        //since predicateType are only  "p_type": predicate type (">=", ">", "<=", "<")
+        arrayofPredReq[0]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid",">=",this.shippingId,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+        arrayofPredReq[1]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid","<=",this.shippingId,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+        String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
+                ,"1.0","1.0",
+                arrayofAttrreq,arrayofPredReq,currenttime,currenttime);
+        return proofReqbody;
+    }
+
+    public String openBox(String proofToGetAttributes){
+        JSONObject proofStructure = new JSONObject(proofToGetAttributes);
+        JSONObject revealed_attr=(proofStructure.getJSONObject("requested_proof").getJSONObject("revealed_attr_groups").getJSONObject("attr0_referent")
+                .getJSONObject("values"));
+        String proofLockerBoxId= revealed_attr.getJSONObject("lockerboxid").getString("raw");
+        String proofShippingnonce = revealed_attr.getJSONObject("shippingnonce").getString("raw");
+        Long proofOpeningBoxTime = Long.valueOf(proofStructure.getJSONObject("requested_proof").getJSONObject("self_attested_attrs").
+                getString("attr1_referent"));
+        boolean shippingNonceIsCorrect= this.shippingNonce.equals(proofShippingnonce);
+        boolean proofLockerBoxIdIsCorrect= this.boxName.equals(proofLockerBoxId);
+        boolean openingTimeisValid = proofOpeningBoxTime>=this.timestampcanopen && proofOpeningBoxTime<=this.timestampreturnitem;
+        System.out.println(shippingNonce + " " +proofShippingnonce);
+        System.out.println(this.boxName +  " "+proofLockerBoxId);
+        System.out.println(timestampcanopen +"  "+proofOpeningBoxTime+"  "+  timestampreturnitem);
+        return   shippingNonceIsCorrect && proofLockerBoxIdIsCorrect ?
+                (openingTimeisValid ? "Success" : "WrongTime") : "InvalidProof";
+    }
+
+
+    /*This method would ask for each attribute individually, meaning that they could have come from
+    differents credentials (even valid ones if issued by the right issuer, the correct methods
+    uses the field names:[string,string] in proof request, for asking more attributes belonging to the same
+    credential!
+
+    private String askClientForProofRequest(){
+        //send proof request to client!
+        //the proof request is designed such that the client needs to have the shippingid and diddest designed for the
+        //current item in the box, it is done by using Indy predicates
+        //the proof request also requests the LockerBoxID and the ItemName but those attributes can be also unrevealed
+        //(LockerBox does not need to know its contents)
+        Long currenttime=null;
+        int [] arr;
+        JSONObject []arrayofAttrreq = new JSONObject[4];
+        arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest("lockerboxid",null,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+        arrayofAttrreq[1] = IndyLockerBox.generateAttrInfoForProofRequest("itemname",null,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+        arrayofAttrreq[2] = IndyLockerBox.generateAttrInfoForProofRequest("diddest",null,null,null,null,null,
+
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+        arrayofAttrreq[3] = IndyLockerBox.generateAttrInfoForProofRequest("storedid",null,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+
+
+        JSONObject []arrayofPredReq = new JSONObject[4];
+        //since predicateType are only  "p_type": predicate type (">=", ">", "<=", "<")
+        //to enforce equality it is needed to creare a request with pred.type '>=' and  another with '<='
+        arrayofPredReq[0]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid",">=",this.shippingId,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+        arrayofPredReq[1]= IndyLockerBox.generatePredicatesInfoForProofRequest("shippingid","<=",this.shippingId,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+        arrayofPredReq[2] = IndyLockerBox.generatePredicatesInfoForProofRequest("shippingnonce",">=",this.shippingNonce,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+        arrayofPredReq[3] = IndyLockerBox.generatePredicatesInfoForProofRequest("shippingnonce","<=",this.shippingNonce,null,null,null,null,
+                this.storedid,this.creddefid,null,currenttime,currenttime);
+
+       String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
+                ,"1.0","1.0",
+                arrayofAttrreq,arrayofPredReq,currenttime,currenttime);
+        return proofReqbody;
+    }*/
 }

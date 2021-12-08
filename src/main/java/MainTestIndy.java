@@ -231,7 +231,7 @@ public class MainTestIndy {
                 "1.0",null,null,new JSONObject[]{predicateRequest},
                 timestamp,timestamp);
         //System.out.println("new proof request "+proofRequestOfPredicate);
-        ProofAttributesFetched AttributeForproofForSubscription=Studente.returnProverSearchAttrForProof(proofRequestOfPredicate);
+        ProofAttributesFetched AttributeForproofForSubscription=Studente.returnProverSearchAttrForProof(proofRequestOfPredicate,null);
         System.out.println("numbero di proof: "+AttributeForproofForSubscription.AttrcredDefIDs.size() +" predicates "+
                 AttributeForproofForSubscription.predicatestoReferenceList.size() + "little lenght to predicate cred def id"+AttributeForproofForSubscription.PredicatescredDefIDs.size());
         ProofCreationExtra createdProof = Studente.proverCreateProof(AttributeForproofForSubscription,proofRequestOfPredicate,null,

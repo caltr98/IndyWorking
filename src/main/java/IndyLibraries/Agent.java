@@ -559,11 +559,11 @@ public class Agent {
             if (selfAttestedAttr != null) {
                 requestedCredentialsJson = IndyJsonStringBuilder.getProofBody((String[]) (selfAttestedList.toArray(String[]::new)),
                         selfAttestedAttr, (String[]) (toReferenceList.toArray(String[]::new)), (String[]) (credentialID.toArray(String[]::new)),
-                        (String[]) requestedRevealed.toArray(String[]::new), null, null, null);
+                        new HashMap<>(), null, null, null);
             } else {
                 requestedCredentialsJson = IndyJsonStringBuilder.getProofBody(null,
                         null, (String[]) (toReferenceList.toArray(String[]::new)), (String[]) (credentialID.toArray(String[]::new)),
-                        (String[]) (requestedRevealed.toArray(String[]::new)), null, null, null);
+                        new HashMap<>(), null, null, null);
 
             }
             //prendere dal json l'id dello schema e della creddef
@@ -767,7 +767,7 @@ public class Agent {
 
     }
 
-    public ProofAttributesFetched returnProverSearchAttrForProof(String proofRequestJson) {
+    public ProofAttributesFetched returnProverSearchAttrForProof(String proofRequestJson,ArrayList<String> requestedRevealed) {
         //NECESSARIO CREARE UN'ALGORITMO CHE PER OGNI CREDENZIALE DEL CARO AGENT, CONTROLLI CHE CORRISPONDA AD
         //UNA REFERENCE CHE HA LUI
         JSONArray jsonArray;
@@ -788,7 +788,7 @@ public class Agent {
 
         ArrayList<String> predicatesCredDefIdList = new ArrayList<>();
         ArrayList<String> PredicatestoReferenceList = new ArrayList<>();
-
+        HashMap<String,Boolean> toReveal = new HashMap<String, Boolean>();
         CredentialsSearchForProofReq credentialsSearch = null;
         try {
             System.out.println("PROOF REQUEST FOR RESEARCH" + proofRequestJson + "\n");
@@ -803,6 +803,8 @@ public class Agent {
             JSONObject jsonObject = new JSONObject(proofRequestJson).getJSONObject("requested_attributes");
             System.out.println("requested attr"+jsonObject.toString(4));
             for (String attrRef : jsonObject.keySet()) {
+                if(requestedRevealed!=null)
+                    toReveal.put(attrRef,requestedRevealed.contains(attrRef));
                 jsonArray = new JSONArray(credentialsSearch.fetchNextCredentials(attrRef, 100).get());
                 String credId;
                 if (jsonArray.length() > 0) {
@@ -849,8 +851,8 @@ public class Agent {
                     credentialIDForPredicates.add(credentialIdForAttribute);
                     PredicatestoReferenceList.add(attrRef);
 
-                } else {
-                    selfAttestedList.add(attrRef);
+                }  {
+                    System.out.println("No credential in Wallet for attribute of requested predicate reference : " +attrRef);
                 }
             }
         } catch (IndyException e) {
@@ -868,7 +870,7 @@ public class Agent {
 
         return new ProofAttributesFetched(credentialID, selfAttestedList, AttrtoReferenceList,
                 credDefIDsAttr, predicatesCredDefIdList, SchemaIDs, credentialIDForPredicates, PredicatestoReferenceList, RevocationRegistryForAttrIDs,
-                RevocationRegistryForPredIDs, RevocationCredentialRegistryForAttrIDs, RevocationCredentialRegistryForPredIDs);
+                RevocationRegistryForPredIDs, RevocationCredentialRegistryForAttrIDs, RevocationCredentialRegistryForPredIDs,toReveal);
     }
 
     public ProofCreationExtra proverCreateProof(ProofAttributesFetched fetchedAttrProofs,
@@ -878,16 +880,13 @@ public class Agent {
         String requestedCredentialsJson = null;
         if (fetchedAttrProofs.selfAttestedList
                 != null) {
-            requestedCredentialsJson = IndyJsonStringBuilder.getProofBody((String[]) (
-                            fetchedAttrProofs.selfAttestedList
-                                    .toArray(String[]::new)),
-                    selfAttestedListValues
-                    , (String[]) (fetchedAttrProofs.AttrtoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.credentialID.toArray(String[]::new)),
-                    requestedRevealed, (String[]) (fetchedAttrProofs.predicatestoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.predicateCredIDs.toArray(String[]::new)), timestamp);
+            requestedCredentialsJson = IndyJsonStringBuilder.getProofBody(fetchedAttrProofs.selfAttestedList.toArray(String[]::new),
+                    selfAttestedListValues, (String[]) (fetchedAttrProofs.AttrtoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.credentialID.toArray(String[]::new)),
+                    fetchedAttrProofs.toReveal, (String[]) (fetchedAttrProofs.predicatestoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.predicateCredIDs.toArray(String[]::new)), timestamp);
         } else {
             requestedCredentialsJson = IndyJsonStringBuilder.getProofBody(null,
                     null, (String[]) (fetchedAttrProofs.AttrtoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.credentialID.toArray(String[]::new)),
-                    requestedRevealed, (String[]) (fetchedAttrProofs.predicatestoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.predicateCredIDs.toArray(String[]::new)), timestamp);
+                    fetchedAttrProofs.toReveal, (String[]) (fetchedAttrProofs.predicatestoReferenceList.toArray(String[]::new)), (String[]) (fetchedAttrProofs.predicateCredIDs.toArray(String[]::new)), timestamp);
         }
         //prendere dal json l'id dello schema e della creddef
         String schemas;
@@ -1544,5 +1543,20 @@ public class Agent {
         }
         return null;
     }
-
+    //@param credentialId is the Identifier by which requested credential is stored in the wallet
+    public boolean proverDeleteCredential(String credentialId){
+        try {
+            Anoncreds.proverDeleteCredential(this.mainWallet,credentialId).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return false;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
 }
