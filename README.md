@@ -1,14 +1,21 @@
 # IndyWorking
 HIghter level libraries for credential issuing and revocation and Shipping an Item use-case implementation
 
+#Requirements
+#### install IndySDK 
+https://github.com/hyperledger/indy-sdk
+### install Docker
+https://docs.docker.com/engine/install/ubuntu/
+### install and use indyscan
+https://github.com/Patrik-Stas/indyscan/tree/master/start
 
-
-Shipping Simulation
+# Shipping Simulation
 5 Different processes:
-Store->STOREMAINTEST
-Lockerbox->LockerboxMainTest
-Customer->ClienteMarket
-ShippingAgent->ShippingAgentMainTest
+- Store->STOREMAINTEST 
+- Lockerbox->LockerboxMainTest
+- Customer->ClienteMarket
+- ShippingAgent->ShippingAgentMainTest
+- Steward -> MarketPlaceSteward
 
 # Setup connection to Pool
 Any Agent connection to the pool must create a Pool configuration before connecting to the pool,
