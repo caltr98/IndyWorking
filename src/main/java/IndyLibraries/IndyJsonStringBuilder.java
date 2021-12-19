@@ -309,14 +309,14 @@ public class IndyJsonStringBuilder {
         return jsonObjectRequest.toString(4);
     }
 
-    public static JSONObject generateAttrInfoForProofRequest(String name,String[]names,
-                                                  String schema_id,String schema_issuer_did,
-                                                  String schema_name,
-                                                  String schema_version,
-                                                  String issuer_credential_did,
-                                                  String cred_def_id,
-                                                  String rev_reg_id,
-                                                  Long NonRevokedFROM,Long NonRevokedUNTIL){
+    public static JSONObject generateAttrInfoForProofRequest(String name, String[] names,
+                                                             String schema_id, String schema_issuer_did,
+                                                             String schema_name,
+                                                             String schema_version,
+                                                             String issuer_credential_did,
+                                                             String cred_def_id,
+                                                             String[] attr_for_value_restrictions, String[] value_restriction_for_attrs, String rev_reg_id,
+                                                             Long NonRevokedFROM, Long NonRevokedUNTIL){
     //name or names at least
         // one of them should be used and at most one of them can be used,
         // names is used if we want to match attributes from ONE CREDENTIAL ( the credential needs to provide them all)
@@ -353,7 +353,18 @@ public class IndyJsonStringBuilder {
             jsonRestrictionsCollection.put("cred_def_id",cred_def_id);
         }
         if(rev_reg_id!=null){
-            jsonRestrictionsCollection.put("rev_reg_id",rev_reg_id);
+            //jsonRestrictionsCollection.put("rev_reg_id","None");
+            //from  https://github.com/hyperledger/indy-sdk/blob/113b79cd64a238130d20e19b972326f72047c550/wrappers/java/src/main/java/org/hyperledger/indy/sdk/anoncreds/Anoncreds.java#L1233
+            // "rev_reg_id": <credential revocation registry id>, // "None" as string if not present, this restriction cannot be applied
+
+        }
+        int i;
+        if(attr_for_value_restrictions!=null && value_restriction_for_attrs !=null &&
+        attr_for_value_restrictions.length == value_restriction_for_attrs.length){
+            for (i=0;i<attr_for_value_restrictions.length;i++){
+                jsonRestrictionsCollection.put("attr::"+attr_for_value_restrictions[i]+
+                        "::value",value_restriction_for_attrs[i]);
+            }
         }
         if(jsonRestrictionsCollection.length()>0){
             jsonObject.put("restrictions",jsonRestrictionsCollection);

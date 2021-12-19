@@ -1,12 +1,14 @@
 package IndyLibraries;
 
+import netscape.javascript.JSObject;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.ledger.Ledger;
 import org.hyperledger.indy.sdk.pool.Pool;
+import org.json.JSONObject;
 
 import java.util.concurrent.ExecutionException;
 
-import static org.hyperledger.indy.sdk.ledger.Ledger.signAndSubmitRequest;
+import static org.hyperledger.indy.sdk.ledger.Ledger.*;
 
 public class StewardAgent extends Endorser {
     private final static String TRUST_ANCHOR="TRUST_ANCHOR";
@@ -14,8 +16,9 @@ public class StewardAgent extends Endorser {
     public StewardAgent(Pool poolConnection, String agentName, JSONUserCredentialStorage agentsFile) {
         super(poolConnection, agentName,agentsFile);
     }
-    //assign an IndyLibraries.Endorser/Trust_Anchor role to the specified newEndorserDID,
-    //creating a NymRequest,signign it and submitting it to the ledger
+    //assign an Indy Endorser/Trust_Anchor role to the specified newEndorserDID,
+    //Agent here is creating a NymRequest,signing it and submitting it to the ledger,
+    //a NymRequest will publish the newEndorser DID and VerKey on the Domain Ledger.
     public boolean assignEndorserRole(DIDStructure newEndorserDid,boolean isTrustAnchor){
         String endorserMeaning;
         String nymRequest;
@@ -86,6 +89,30 @@ public class StewardAgent extends Endorser {
         return true;
     }
 
+    public String GetvalidatorInfo(){
+        try {
+            String validatorInfoReq=buildGetValidatorInfoRequest(this.mainDID.didName).get();
+            //validator info request must be sent to specifics node
+            String SignedvalidatorInfoReq=signRequest(this.mainWallet,this.mainDID.didName,validatorInfoReq).get();
+            String requestResult=submitAction(this.poolConnection,SignedvalidatorInfoReq,null,-1).get();
+            System.out.println(requestResult);
+            JSONObject result = new JSONObject(requestResult);
+            System.out.println("node 1 info" +new JSONObject(result.getString("Node1")).toString(4));
+            System.out.println("node 2 info" +new JSONObject(result.getString("Node2")).toString(4));
+            System.out.println("node 3 info" +new JSONObject(result.getString("Node3")).toString(4));
+            System.out.println("node 4 info" +new JSONObject(result.getString
+                    ("Node4")).toString(4));
 
+            return new JSONObject(requestResult).toString(4);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (IndyException e) {
+            e.printStackTrace();
+        }
+        return null;
+
+    }
 
 }

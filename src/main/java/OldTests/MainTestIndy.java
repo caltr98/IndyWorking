@@ -1,5 +1,7 @@
+package OldTests;
+//WARNING: un-tested!it can be used as a reference for revocation
 import IndyLibraries.*;
-import OldTests.demo2;
+import OldTests.sideTestIndy;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.anoncreds.Anoncreds;
 import org.hyperledger.indy.sdk.ledger.Ledger;
@@ -15,6 +17,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
 public class MainTestIndy {
+    //Similar to sideTestIndy but this time Spotify/External service issues credentials too.
+
     public static void main(String[] args){
         String poolName="INDYSCANPOOL";
         //In Indy pre generated genesis transaction there are two DID for a Default Steward and a Default IndyLibraries.Trustee
@@ -182,11 +186,11 @@ public class MainTestIndy {
                 credentialSubscription.credentialJson,credOfferToSubscriber.credDef.credDefJson,revRegSub.revRegDefJson);
         System.out.println("credenziale: "+credentialSubscription.credentialJson);
         Spotify.revocationRegistryEntryPublishDelta(revRegSub);
-        Spotify.getRevocRegReqGetAccum(revRegSub, demo2.getUnixTimeStamp());
+        Spotify.getRevocRegReqGetAccum(revRegSub, sideTestIndy.getUnixTimeStamp());
         Spotify.revocationRegistryEntryPublishDelta2(revRegSub.revRegId,
                 credentialSubscription.revocRegDeltaJson
                 );
-        Spotify.getRevocRegReqGetAccum(revRegSub,demo2.getUnixTimeStamp());
+        Spotify.getRevocRegReqGetAccum(revRegSub,sideTestIndy.getUnixTimeStamp());
         Spotify.IssuerRevokeCredentialAndPublish(revRegSub,credentialSubscription.revocId);
 
         try {
@@ -194,7 +198,7 @@ public class MainTestIndy {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        String accumdeltas=Spotify.getRevocRegReqGetAccum(revRegSub,demo2.getUnixTimeStamp());
+        String accumdeltas=Spotify.getRevocRegReqGetAccum(revRegSub,sideTestIndy.getUnixTimeStamp());
 
         /*
 
@@ -216,8 +220,7 @@ public class MainTestIndy {
 
         System.out.println("merger DELTA"+mergeofAnotherANDRevok);
 */
-        //add schemaversion and schema name to schema structure obj TODO
-        long timestamp= demo2.getUnixTimeStamp();
+        long timestamp= sideTestIndy.getUnixTimeStamp();
         JSONObject predicateRequest = Spotify.generatePredicatesInfoForProofRequest("NumberOfmonths",">=","1",
                 SubscriptionSchema.schemaId,Spotify.mainDID.didName,null,null,
                 Spotify.mainDID.didName,credDefSubscription.credDefId,revRegSub.revRegId,
@@ -234,8 +237,7 @@ public class MainTestIndy {
         ProofAttributesFetched AttributeForproofForSubscription=Studente.returnProverSearchAttrForProof(proofRequestOfPredicate,null);
         System.out.println("numbero di proof: "+AttributeForproofForSubscription.AttrcredDefIDs.size() +" predicates "+
                 AttributeForproofForSubscription.predicatestoReferenceList.size() + "little lenght to predicate cred def id"+AttributeForproofForSubscription.PredicatescredDefIDs.size());
-        ProofCreationExtra createdProof = Studente.proverCreateProof(AttributeForproofForSubscription,proofRequestOfPredicate,null,
-                null,demo2.getUnixTimeStamp(), revRegSub.blobStorageReaderHandle);
+        ProofCreationExtra createdProof = Studente.proverCreateProof(AttributeForproofForSubscription,proofRequestOfPredicate,null,sideTestIndy.getUnixTimeStamp() , revRegSub.blobStorageReaderHandle);
         /*String getRevocationThings = Studente.proverGetRevocationStateFORPROOF(revRegSub,
                 System.currentTimeMillis(),credentialSubscription.revocId);
         //System.out.println(createdProof.proofJson);
@@ -284,7 +286,7 @@ public class MainTestIndy {
             /*
              * revoc delta for current timestamp
              */
-            long time = demo2.getUnixTimeStamp();
+            long time = sideTestIndy.getUnixTimeStamp();
             request = Ledger.buildGetRevocRegDeltaRequest(didTrustAnchor, revRegDefId, time, time).get();
             response = Ledger.signAndSubmitRequest(myPool, myWallet, didTrustAnchor, request).get();
             System.out.println("Prover has read the revoc delta for interval from: " + time + "to: " + time + " response from ledger \n" + response + "\n");

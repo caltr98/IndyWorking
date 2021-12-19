@@ -8,6 +8,7 @@ import org.hyperledger.indy.sdk.did.Did;
 import org.hyperledger.indy.sdk.did.DidResults;
 import org.hyperledger.indy.sdk.ledger.Ledger;
 import org.hyperledger.indy.sdk.ledger.LedgerResults;
+import org.hyperledger.indy.sdk.metrics.Metrics;
 import org.hyperledger.indy.sdk.pool.Pool;
 import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.hyperledger.indy.sdk.wallet.WalletItemAlreadyExistsException;
@@ -24,18 +25,17 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ExecutionException;
 import static org.hyperledger.indy.sdk.ledger.Ledger.*;
-
+//Java class that encapsulates an Agent object with all the capabilities of an Agent without an Identity onto the Ledger.
 public class Agent {
     protected String agentName;
     public Pool poolConnection;
     protected JSONUserCredentialStorage agentsFile;
 
     public Wallet mainWallet;//WalletHandle
-    protected HashMap<String, Wallet> walletCollection;//walletName->WalletHandle
 
     public DIDStructure mainDID;//(DIDValue,DIDVerkey)
     protected HashMap<String, DIDStructure> DIDCollection;//DIDValue->(DIDValue,DIDVerkey)
-
+    //a local cache of schema and cred defs
     protected HashMap<String, SchemaStructure> SchemaCollection;//SchemaID->(SchemaID,SchemaJson)
     protected HashMap<String, CredDefStructure> CredDefsCollection;//CredDefID->(CredDefID,CredDefJson)
     protected String nonce;
@@ -45,7 +45,6 @@ public class Agent {
     public Agent(Pool poolConnection, String agentName, JSONUserCredentialStorage agentsFile) {
         this.poolConnection = poolConnection;
         this.agentName = agentName;
-        this.walletCollection = new HashMap<>();
         this.DIDCollection = new HashMap<>();
         this.CredDefsCollection = new HashMap<>();
         this.SchemaCollection = new HashMap<>();
@@ -56,11 +55,11 @@ public class Agent {
             this.masterSecret = masterSecret;
         }
         if ((DID = agentsFile.getAgentDID(agentName)) != null) {
-            System.out.println("c'è un DID effecticely" + DID);
             this.mainDID = new DIDStructure(DID, null);
             this.DIDCollection.put(agentName, this.mainDID);
         }
         if ((VerKey = agentsFile.getAgentVerKey(agentName)) != null) {
+            //create a structure for the current Agent in the backup agents ifle
             if (this.mainDID != null) {
                 //cant have a verkey without an associated DID
                 this.mainDID.setVerKey(VerKey);
@@ -68,6 +67,11 @@ public class Agent {
             }
         } else {
             this.agentsFile.insertAgentName(agentName);
+            try {
+                this.agentsFile.makeBackup();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -76,13 +80,10 @@ public class Agent {
         this.poolConnection = pool;
         this.agentName = agentName;
         this.mainDID = new DIDStructure(DID, Verkey);
-        this.walletCollection = new HashMap<>();
         this.DIDCollection = new HashMap<>();
         this.CredDefsCollection = new HashMap<>();
         this.SchemaCollection = new HashMap<>();
         this.masterSecret = null;
-        this.agentsFile = agentsFile;
-
     }
 
 
@@ -104,7 +105,6 @@ public class Agent {
         if (walletHandle != null) {
             if (mainWallet == null)
                 mainWallet = walletHandle;
-            walletCollection.put(walletName, walletHandle);
         }
         return walletHandle;
     }
@@ -115,13 +115,11 @@ public class Agent {
             Wallet.createWallet(new JSONObject().put("id", walletName).toString(4),
                     new JSONObject().put("key", walletKeyPassword).toString(4)).get();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            System.out.println("CreateWallet, CxecutionException exception, probably wallet with specified name already exists");
             return false;
         } catch (ExecutionException e) {
-            e.printStackTrace();
             return false;
         } catch (IndyException e) {
-            e.printStackTrace();
             return false;
         }
         return true;
@@ -136,6 +134,7 @@ public class Agent {
         DidResults.CreateAndStoreMyDidResult AgentDIDResult =
                 null;
         try {
+
             AgentDIDResult = Did.createAndStoreMyDid(mainWallet, IndyJsonStringBuilder.getEmptyJson()).get();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -146,9 +145,27 @@ public class Agent {
         }
         this.agentsFile.insertAgentDID(this.agentName, AgentDIDResult.getDid());
         this.agentsFile.insertAgentVerKey(this.agentName, AgentDIDResult.getVerkey());
+        try {
+            this.agentsFile.makeBackup();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return addDIDToCollectionSetMainDid(AgentDIDResult);
     }
+    public String collectMetrics(){
+        try {
+            //return libindy metrics for current process
+            return new JSONObject(Metrics.collectMetrics().get()).toString(4);
+        } catch (IndyException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return null;
 
+    }
     //create DID based on Seed
     public String createDID(String didSeed) {
         String DID = null;
@@ -201,12 +218,14 @@ public class Agent {
                     createDIDString(didValue, seedValue, cryptotypeValue, cidValue, methodnameValue)).get();
             this.agentsFile.insertAgentDID(this.agentName, AgentDIDResult.getDid());
             this.agentsFile.insertAgentVerKey(this.agentName, AgentDIDResult.getVerkey());
-
+            this.agentsFile.makeBackup();
         } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (IndyException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
         return addDIDToCollectionSetMainDid(AgentDIDResult);
@@ -223,11 +242,14 @@ public class Agent {
              retrievedDID = new JSONObject (Did.getDidWithMeta(mainWallet,didValue).get());
             this.agentsFile.insertAgentDID(this.agentName, retrievedDID.getString("did"));
             this.agentsFile.insertAgentVerKey(this.agentName, retrievedDID.getString("verkey"));
+            this.agentsFile.makeBackup();
         } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (IndyException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
         return addDIDToCollectionSetMainDid(retrievedDID.getString("did"),retrievedDID.getString("verkey"));
@@ -372,12 +394,17 @@ public class Agent {
     //set this IndyLibraries.Agent mastersecret
     public String createMasterSecret() {
         try {
-            return this.masterSecret = Anoncreds.proverCreateMasterSecret(this.mainWallet, null).get();
+            this.masterSecret = Anoncreds.proverCreateMasterSecret(this.mainWallet, null).get();
+            this.agentsFile.insertMasterSecret(this.agentName,this.masterSecret);
+            this.agentsFile.makeBackup();
+            return this.masterSecret;
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (IndyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
             e.printStackTrace();
         }
         return null;
@@ -385,21 +412,27 @@ public class Agent {
 
     public String createMasterSecret(String masterSecretId) {
         try {
-            return this.masterSecret = Anoncreds.proverCreateMasterSecret(this.mainWallet, masterSecretId).get();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-            this.masterSecret = masterSecretId;
-            System.out.println("this master is a secret " + this.masterSecret);
-        } catch (IndyException e) {
-            e.printStackTrace();
+            this.masterSecret = Anoncreds.proverCreateMasterSecret(this.mainWallet, masterSecretId).get();
+            this.agentsFile.insertMasterSecret(this.agentName,this.masterSecret);
+            this.agentsFile.makeBackup();
+            return this.masterSecret;
 
+        } catch (InterruptedException e) {
+        } catch (ExecutionException e) {
+            this.masterSecret = masterSecretId;
+            System.out.println("Thia master secret already exists " + this.masterSecret);
+        } catch (IndyException e) {
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         return null;
     }
 
-    //get credential request structure (credreqJson,credredmetadata) for issuer by future prover
+    //get credential request structure (credreqJson,credredmetadata) for issuer
+    //inside the credential request prover will put his master secret key in it, the master secret will make the credential
+    //belong to the prover, any other Agent with the credential and without the master secret will not be able to create a
+    //valid proof with it.
     public CredRequestStructure returnproverCreateCredentialRequest(CredOfferStructure credOffer) {
         AnoncredsResults.ProverCreateCredentialRequestResult createCredReqResult =
                 null;
@@ -419,7 +452,7 @@ public class Agent {
             }
         }
         try {
-            if (this.masterSecret == null) {
+            if (this.masterSecret == null) {//creates a mastersecret for this Agent if there is not an existing already
                 ////System.out.println creating master secret
                 createMasterSecret();
                 System.out.println("masterSecretAtCreation" + this.masterSecret);
@@ -500,7 +533,6 @@ public class Agent {
             credentialWalletReferent = Anoncreds.proverStoreCredential(this.mainWallet, credentialID, credReqMetadataJson, credential,
                     credDefJson, revRegDefJson).get();
             System.out.println("stored credential"+credentialWalletReferent);
-            agentsFile.putCredential(this.agentName, credentialWalletReferent);
             CredDefsCollection.put(credDefId, credDefStructure);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -671,7 +703,7 @@ public class Agent {
         return null;
     }
 
-
+    //verify a proof created with non revocable credentials
     public Boolean returnVerifierVerifyProofNOREVOCATION(String proofRequestJson, String proofJson, String schemas,
                                                          String credentialDefs) {
 
@@ -740,11 +772,11 @@ public class Agent {
                                                              String schema_version,
                                                              String issuer_credential_did,
                                                              String cred_def_id,
-                                                             String rev_reg_id,
+                                                             String[] attr_for_value_restrictions, String[] value_restriction_for_attrs, String rev_reg_id,
                                                              Long NonRevokedFROM, Long NonRevokedUNTIL) {
         return IndyJsonStringBuilder.generateAttrInfoForProofRequest(name, names, schema_id, schema_issuer_did,
                 schema_name, schema_version,
-                issuer_credential_did, cred_def_id, rev_reg_id, NonRevokedFROM, NonRevokedUNTIL);
+                issuer_credential_did, cred_def_id, attr_for_value_restrictions,value_restriction_for_attrs,rev_reg_id, NonRevokedFROM, NonRevokedUNTIL);
     }
 
     public String returnVerifierGenerateProofRequest(String proofReqName, String proofReqVersion, String ver,
@@ -874,8 +906,8 @@ public class Agent {
     }
 
     public ProofCreationExtra proverCreateProof(ProofAttributesFetched fetchedAttrProofs,
-                                                String proofRequestJson, String[] selfAttestedListValues,
-                                                String[] requestedRevealed, Long timestamp,
+                                                String proofRequestJson, String[] selfAttestedListValues
+            , Long timestamp,
                                                 int blobreaderhandle) {
         String requestedCredentialsJson = null;
         if (fetchedAttrProofs.selfAttestedList
@@ -1323,14 +1355,17 @@ public class Agent {
 
                 this.agentsFile.insertAgentDID(this.agentName, AgentDIDResult.getDid());
                 this.agentsFile.insertAgentVerKey(this.agentName, AgentDIDResult.getVerkey());
+                this.agentsFile.makeBackup();
             } catch (ExecutionException e) {
                 e.printStackTrace();
             } catch (IndyException e) {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            return addDIDToCollectionSetMainDid(AgentDIDResult,EndPointAddress);
+        return addDIDToCollectionSetMainDid(AgentDIDResult,EndPointAddress);
         }
 
     private String addDIDToCollectionSetMainDid(DidResults.CreateAndStoreMyDidResult agentDIDResult, String endPointAddress) {
@@ -1403,7 +1438,7 @@ public class Agent {
         }
         return null;
     }
-    public String createDID2DIDComunication(String agentName, InetSocketAddress agentAddress, DatagramSocket ds)  {
+    public String createDID2DIDCommunication(String agentName, InetSocketAddress agentAddress, DatagramSocket ds)  {
         DidResults.CreateAndStoreMyDidResult AgentDIDResult
                 = null;
         String theirDID=null;
@@ -1447,6 +1482,45 @@ public class Agent {
 
         return theirDID;
     }
+    //returns the DID created on this agent side for DID2DID comunication and the message in byte to send to the remote Agent
+    public AskDID2DIDresult createDID2DIDCommunicationAsk(String agentName) {
+        DidResults.CreateAndStoreMyDidResult AgentDIDResult
+                = null;
+        String theirDID = null;
+        byte[] toSend = null;
+        try {
+            AgentDIDResult = Did.createAndStoreMyDid(mainWallet, IndyJsonStringBuilder.getEmptyJson()).get();
+            toSend = DID2DIDComm.setupDID2DIDCommunicationAsk(AgentDIDResult.getDid(), AgentDIDResult.getVerkey(),
+                    agentName);
+            return new AskDID2DIDresult(AgentDIDResult, toSend);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (IndyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+        //process answer to DID2DID commnunication response given and returns theirDID,
+        //given AskDID2DIDresult takes the DID to the current Agent and uses it to create a Pairwise with theirDID from the remote
+        // agent
+        //
+    public String createDID2DIDCommunicationResponse(AskDID2DIDresult askdid2did,byte[]dataReceived) {
+        try {
+            String theirDID=DID2DIDComm.setupDID2DIDCommunicationResponse(mainWallet,askdid2did.agentDIDResult.getDid(),dataReceived);
+        } catch (IndyException ex) {
+            ex.printStackTrace();
+        } catch (ExecutionException ex) {
+            ex.printStackTrace();
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+        }
+        return null;
+    }
+
 
     public String readMessage(byte[] message){
         //read authenticated message
@@ -1558,5 +1632,31 @@ public class Agent {
             return false;
         }
         return true;
+    }
+
+    //when issuing a revocation state, it's needed that the revDelta covers all the whole registy existance time
+    //meaning from '0' to:'needed time', after updateRevocationState it is then possibile to update this
+    //revocation state further, with from'timestampOfRevocation' and to:'needed time',
+    //the get the specific delta call getRevocationRegistryDeltaSpecificTimeFrame.
+    //NOTE:revDelta can be obtained by call issuerCreateCredential or issuerRevokeCredential.
+    //NOTE2:revDelta must be updated to needed time to make sure that a revoked credential is not accounted for
+    //when a creden tial is revoked for the first time in a revocation registry it will be enough to use the
+    //revocation registry from the first issuerCreateCredential associated with the registry
+    public String createRevocationState(RevocationRegistryObject revregObject,
+                                        String revDelta,long timestampOfRevocation,String
+                                                cred_rev_id){
+        try {
+            return Anoncreds.createRevocationState(revregObject.blobStorageReaderHandle,revregObject.revRegDefJson ,revDelta
+                    ,timestampOfRevocation,
+                    cred_rev_id).get();
+        } catch (IndyException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return null;
+
     }
 }

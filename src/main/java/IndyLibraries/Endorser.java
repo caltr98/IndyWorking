@@ -123,7 +123,6 @@ public class Endorser extends Agent {
             toRevokeee=Ledger.buildRevocRegEntryRequest(this.mainDID.didName,revocationRegistry.revRegId,
                     "CL_ACCUM",registryDelta).get();
             String revRegistryRequest = Ledger.buildRevocRegDefRequest(this.mainDID.didName,revocationRegistry.revRegDefJson).get();
-            System.out.println("rev REG REGISTRY REQUEST PART 2 JOJO " + revRegistryRequest);
             System.out.println(signAndSubmitRequest(this.poolConnection,this.mainWallet,
                     this.mainDID.didName,revRegistryRequest).get());
             s=Ledger.signAndSubmitRequest(this.poolConnection, this.mainWallet, this.mainDID.didName, toRevokeee).get();
@@ -234,9 +233,10 @@ public class Endorser extends Agent {
         }
         return new CredOfferStructure(toRet,credentialOffer);
     }
+
+    //creates a credential that is non-revocable
     public CreateCredentialResult returnIssuerCreateCredentialNonRevocable(String[] credKeys,String[] credValues,
                                                                            String credOffer,String credReqJson){
-        //IF THIS METHOD GIVES AN ERROR PROMPTLY REPLACE THE ATTRIBUTE VALUE DIGEST WITH A PLACEHOLDER es:12345
         int i;
 
         if(credKeys.length!=credValues.length){
@@ -250,7 +250,7 @@ public class Endorser extends Agent {
             JSONObject jsonObjectAttr = new JSONObject();
             // Encoded value of non-integer attribute is SHA256 converted to decimal
             // note that encoding is not standardized by Indy except that 32-bit integers are encoded as themselves. IS-786
-            //Encoding of value fields can be a problem if the  256 bit limit is not respected
+            //Encoding of value fields can be a problem if the  256 bit limit is not respected.
             String pass = "password";
 
             //MessageDigest messageDigest = MessageDigest.getInstance("SHA-256"); it would cause erros someway
@@ -270,6 +270,7 @@ public class Endorser extends Agent {
                     hashStr = noHash.toString(16);
                     jsonObjectAttr
                             .put(credKeys[i], new JSONObject().put("raw", credValues[i]).put("encoded","1234"));
+                    //FOR convenience non-numeric will be encoded with value "1234"
 
                 }
 
@@ -458,31 +459,6 @@ public class Endorser extends Agent {
             }
         }
         return null;
-    }
-    //when issuing a revocation state, it's needed that the revDelta covers all the whole registy existance time
-    //meaning from '0' to:'needed time', after updateRevocationState it is then possibile to update this
-    //revocation state further, with from'timestampOfRevocation' and to:'needed time',
-    //the get the specific delta call getRevocationRegistryDeltaSpecificTimeFrame.
-    //NOTE:revDelta can be obtained by call issuerCreateCredential or issuerRevokeCredential.
-    //NOTE2:revDelta must be updated to needed time to make sure that a revoked credential is not accounted for
-    //when a creden tial is revoked for the first time in a revocation registry it will be enough to use the
-    //revocation registry from the first issuerCreateCredential associated with the registry
-    public String createRevocationState(RevocationRegistryObject revregObject,
-                                        String revDelta,long timestampOfRevocation,String
-                                        cred_rev_id){
-        try {
-            return Anoncreds.createRevocationState(revregObject.blobStorageReaderHandle,revregObject.revRegDefJson ,revDelta
-                    ,timestampOfRevocation,
-                    cred_rev_id).get();
-        } catch (IndyException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return null;
-
     }
     //1)first thing to do after creation
     public String revocationRegistryEntryPublishDelta(RevocationRegistryObject revRegObj){

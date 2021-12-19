@@ -13,6 +13,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,6 +39,8 @@ public class MarketPlaceSteward {
         JSONUserCredentialStorage jsonStoredCred = null;
         try {
             Pool.setProtocolVersion(2).get();
+            poolName = IndyLibraries.PoolUtils.createPoolLedgerConfig();
+
             pool = Pool.openPoolLedger(poolName, "{}").get();
             AgentListenChannel = ServerSocketChannel.open();
             AgentListenChannel.socket().bind(null);
@@ -71,6 +74,7 @@ public class MarketPlaceSteward {
         //inserting address 127.0.0.1 for localhost
         indySteward.addENdpointToNYM("did2did","127.0.0.1:"+listeningAddress.getPort());
         Thread th = new Thread(new marketPlaceStewardRequestsHandler(pool,AgentListenChannel,this));
+        System.out.println("gettingPoolStats" + indySteward.GetvalidatorInfo());
         th.start();
     }
 
@@ -289,13 +293,15 @@ public class MarketPlaceSteward {
                                 key.interestOps(SelectionKey.OP_READ);//set  OP_READ in interestSet
                                 //wait new request from this client
                             }
-                            else {//if there is no handler assigned to this agent then it is in did2did communication setup phase
+                            else {//if there is no handler assigned to this agent then this is the  did2did communication setup phase
 
                                 String[] DID2DIDSetupData=foreignAGENTDID.get(id).split("HANDSHAKE2");
                                 //splitting in a convenientway the did and the rest
                                 System.out.println(foreignAGENTDID.get(id));
+                                JSONObject jsonObjectSetup = new JSONObject(foreignAGENTDID.get(id));
+                                foreignAGENTDID.put(id,jsonObjectSetup.getString("theirDID"));
                                 key.channel().configureBlocking(false);
-                                ByteBuffer toSendBuf = ByteBuffer.wrap(("HANDSHAKE2"+DID2DIDSetupData[1]).getBytes());
+                                ByteBuffer toSendBuf = ByteBuffer.wrap(jsonObjectSetup.getString("message").getBytes(StandardCharsets.UTF_8));
                                 while (toSendBuf.hasRemaining()) {
                                     try {
                                         ((SocketChannel)key.channel()).write(toSendBuf);

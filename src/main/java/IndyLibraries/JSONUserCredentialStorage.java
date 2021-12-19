@@ -11,7 +11,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
-
+//Backup functionalities
 public class JSONUserCredentialStorage {
     Cipher cipher;//per criptare la password da conservare
     SecretKey secretKey;
@@ -59,7 +59,6 @@ public class JSONUserCredentialStorage {
         JSONObject jsObject;
         int lineread=0;
         String line;
-        String cryptedMasterSecret;
         StringBuilder resultStringBuilder = new StringBuilder();
         while((line=bufferedReader.readLine())!=null) {
             lineread++;
@@ -94,9 +93,7 @@ public class JSONUserCredentialStorage {
     }
 
     public String getMasterSecret(String agentName){
-        //Limitiamo un IndyLibraries.Agent al possedere solamente un MasterSecret da associare alle proprie credenziali/proof
-        //potenzialmente potrebbe averne di più associate ad una cerchia di credenziali diverse(nella pratica, nella teoria
-        //preferibile una per agent)
+        //A wallet should store all credentials with just one master secret for all of theme
         JSONObject jAgent;
         String ris;
         synchronized (this) {
@@ -111,6 +108,19 @@ public class JSONUserCredentialStorage {
         }
         return null;
     }
+    public String insertMasterSecret(String agentName,String masterSecret){
+        //A wallet should store all credentials with just one master secret for all of theme
+        JSONObject jAgent;
+        String ris;
+        synchronized (this) {
+            if (jsonObjCred.has(agentName)) {
+                jsonObjCred.put(agentName, jsonObjCred.getJSONObject(agentName).put("MasterSecret",masterSecret));
+                return "Success";
+            }
+            else return null;
+        }
+    }
+
     public void insertAgentName(String agentName){
         synchronized (this){
             jsonObjCred.put("agentName",agentName);
@@ -191,50 +201,6 @@ public class JSONUserCredentialStorage {
             }
         }
         return null;
-    }
-    public String[] listOfCredentials(String agentName) {
-        JSONObject tempJSONAgentObj;
-        JSONArray jsonArray;
-        ArrayList<String> arrayList = new ArrayList<>();
-        synchronized (this) {
-            if (jsonObjCred.has(agentName)) {
-                if ((tempJSONAgentObj = jsonObjCred.optJSONObject(agentName)) != null) {
-                    if ((jsonArray = tempJSONAgentObj.optJSONArray("Credentials")) != null) {
-                        return jsonArray.toList().toArray(String[]::new);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-    public void putCredential(String agentName,String credentialIdentifier) {
-        JSONObject tempJSONAgentObj;
-        JSONArray jsonArray;
-        synchronized (this) {
-            System.out.println(jsonObjCred.toString(4));
-            if ( jsonObjCred.has(agentName)) {
-                tempJSONAgentObj = jsonObjCred.optJSONObject(agentName);
-                if(tempJSONAgentObj== null){
-                    tempJSONAgentObj= new JSONObject();
-                }
-                if (tempJSONAgentObj.has("Credentials")
-                && (jsonArray = tempJSONAgentObj.optJSONArray("Credentials") )!=null) {
-                    jsonArray.put(credentialIdentifier);
-                    //update array
-                    tempJSONAgentObj.put("Credentials", jsonArray);
-                    //update agent object
-                    jsonObjCred.put(agentName, tempJSONAgentObj);
-                } else {
-                    jsonArray = new JSONArray();
-                    jsonArray.put(credentialIdentifier);
-                    tempJSONAgentObj.put("Credentials", jsonArray);
-                    //update agent object
-                    System.out.println(jsonObjCred.toString());
-                    jsonObjCred.put(agentName, tempJSONAgentObj);
-
-                }
-            }
-        }
     }
     public void makeBackup() throws IOException {
         FileWriter fileWriter= new FileWriter(userCredentialFile);

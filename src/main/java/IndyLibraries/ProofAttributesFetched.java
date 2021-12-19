@@ -17,7 +17,7 @@ public class ProofAttributesFetched {
     ArrayList<String> SchemaIDs ;
     public ArrayList<String> PredicatescredDefIDs;
     public ArrayList<String> predicatestoReferenceList;
-    HashMap<String, Boolean> toReveal;
+    public HashMap<String, Boolean> toReveal;
     public ProofAttributesFetched(
             ArrayList<String> credentialID, ArrayList<String> selfAttestedList,
             ArrayList<String> attrtoReferenceList, ArrayList<String> credDefIDsAttr,

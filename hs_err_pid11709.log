@@ -16,6 +16,6 @@
 
 ---------------  S U M M A R Y ------------
 
-Command Line: -javaagent:/home/calogero/Scrivania/idea-IU-212.5457.46/lib/idea_rt.jar=41083:/home/calogero/Scrivania/idea-IU-212.5457.46/bin -Dfile.encoding=UTF-8 MainTestIndy
+Command Line: -javaagent:/home/calogero/Scrivania/idea-IU-212.5457.46/lib/idea_rt.jar=41083:/home/calogero/Scrivania/idea-IU-212.5457.46/bin -Dfile.encoding=UTF-8 OldTests.MainTestIndy
 
 Host: AMD A9-9410 RADEON R5, 5 COMPUTE CORES 2C+3G, 2 cores, 7G, 

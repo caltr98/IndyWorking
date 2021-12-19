@@ -20,9 +20,6 @@ import java.util.concurrent.ExecutionException;
 public class DID2DIDComm {
 
 
-    public static String askingForEndorserRole(DIDStructure myDID) {
-        return "Hey";
-    }
 
     public static boolean sendDID2DIDMSG(Wallet senderWallet, String receiver2SenderDID,
                                           String msg, Socket connectionSocket) throws IndyException, ExecutionException, InterruptedException, IOException {
@@ -127,7 +124,8 @@ public class DID2DIDComm {
         System.out.println("receipent did for whome i ask the verkey"+ recipientDID);
         String theirVerKeyInMessageDid=Did.keyForLocalDid(senderWallet,
                 recipientDID).get() ;
-        String myPairInPairwise = new JSONObject(Pairwise.getPairwise(senderWallet,recipientDID).get()).getString("my_did");
+        String myPairInPairwise = new JSONObject(Pairwise.getPairwise(senderWallet,recipientDID).get()).
+                getString("my_did");
         String myVerKeyInMessageDid = Did.keyForLocalDid(senderWallet,myPairInPairwise).get();
         /*System.out.println("theirVerKeyInMessageDid"+ theirVerKeyInMessageDid+" myPairInPairwise"+myPairInPairwise
         +"myVerKeyInMessageDid: "+myVerKeyInMessageDid);*/
@@ -141,6 +139,14 @@ public class DID2DIDComm {
         return packedData;
     }
 
+    /*
+      Given an Handshake Message and a pair of (meToThemDID,meToThemVerKey) created by the current agent,
+      the Handshake message contains the DID of the communicating agent and their verkey.
+      Did.storeTheirDid is an IndySDK library call and stores the did of the communicating agent and their verkey
+      Pairwise.createPairwise creates a PairWise in the Wallet,PairWise will be then used to find the
+      current Agent DID corresponding to the remote Agent when writing a message,
+      theirDID and theirVerKey will be used when reading the remote agent message
+     */
     public static String createDIDtoDID(Wallet wallet,
                                          String handshakeMSG,String meToThemDID, String meToThemVerKey,
                                          String agentName) throws IOException, IndyException, ExecutionException, InterruptedException {
@@ -232,7 +238,7 @@ public class DID2DIDComm {
         System.out.println("message sended");
         //closes output and returns EOF to the receiver
         String receivedMessage = readMessage(connectionSocket);
-
+        System.out.println("received message"+ receivedMessage);
         if (receivedMessage != null) {
             String[] MsgFields = receivedMessage.split("-\r");
             if (MsgFields != null) {
@@ -255,12 +261,22 @@ public class DID2DIDComm {
         Pairwise.createPairwise(wallet, theirDID, meToThemDID, new JSONObject().put("AgentName", theirName).toString()).get();
         return theirDID;//returns their did for further references
     }
+    //setup of DID2DID comunicatiotion send of Handshake message with myDID and myVerKey created for comunication with remote Agent
     public static byte[] setupDID2DIDCommunicationAsk(String meToThemDID, String meToThemVerKey, String agentName) throws IOException, IndyException, ExecutionException, InterruptedException {
 
         String message = "HANDSHAKE1-\rIndyLibraries.Agent:-\r" + agentName + "-\rDID:-\r" + meToThemDID + "-\rVerkey:-\r" + meToThemVerKey;
         System.out.println(message + "mex to send");
         return message.getBytes(Charset.defaultCharset());
     }
+    /*setup of DID2DID communication send of myDID and myVerKey created for communication with remote Agent
+       if the setup on the remote agent was successful then the current agents receives theirDID and theirVerKey
+      and calls:
+      Did.storeTheirDid is an IndySDK library call and stores the did of the communicating agent and their verkey
+      Pairwise.createPairwise creates a PairWise in the Wallet.
+      PairWise will be then used to find the
+      current Agent DID that correspond to the remote Agent when writing a message,
+      theirDID and theirVerKey will be then used when reading the remote agent message
+     */
     public static String setupDID2DIDCommunicationResponse(Wallet wallet,String meToThemDID,byte[] receivedmessage) throws IndyException, ExecutionException, InterruptedException {
         String receivedMessage = new String(receivedmessage,Charset.defaultCharset());
         String theirName, theirDID, theirVerKey;
@@ -269,7 +285,6 @@ public class DID2DIDComm {
         System.out.println(receivedMessage + receivedMessage.length());
         if (receivedMessage != null) {
             String[] MsgFields = receivedMessage.split("-\r");
-
             if (MsgFields != null) {
                 if (MsgFields[0].equals("HANDSHAKE2")) {
                     if (MsgFields[1].equals("IndyLibraries.Agent:") && MsgFields[3].equals("DID:") && MsgFields[5].equals("Verkey:")) {

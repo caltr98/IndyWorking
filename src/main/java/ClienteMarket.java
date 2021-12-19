@@ -1,11 +1,9 @@
 import IndyLibraries.*;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.pool.Pool;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
-import javax.xml.crypto.Data;
 import java.io.File;
 import java.io.IOException;
 import java.net.*;
@@ -85,9 +83,9 @@ public class ClienteMarket {
         CredOfferStructure credOfferReceived = new CredOfferStructure(credDefStructure,
                 responseJOBJ.getString("credOffer"));
 
+
         //BEFORE
 
-        System.out.println("master secret"+agentCliente.createMasterSecret());
         agentCliente.createMasterSecret("3b80a521-cf9d-4076-b29c-91741254a665");
         CredRequestStructure cred_req=agentCliente.returnproverCreateCredentialRequest(credOfferReceived);
         System.out.println("request format \n"+
@@ -102,22 +100,25 @@ public class ClienteMarket {
 
         byte[]orderMessage=agentCliente.writeMessage(jsonObjectItemOrder.toString(),storeDID2DID);
         agentCliente.sendD2DMessage(orderMessage, connectionTOStore.socket());
+
         String itemOrderResponse=new String(agentCliente.waitForMessage(connectionTOStore.socket()),
                 Charset.defaultCharset());
         System.out.println(itemOrderResponse);
 
-        byte[] credential_req=agentCliente.credentialRequestMSG(storeDID2DID,cred_req.credReqJson,credOfferReceived.credOffer);
 
+        System.out.println("Customer Credential Request size in bytes ->"+ cred_req.credReqJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
+
+        byte[] credential_req=agentCliente.credentialRequestMSG(storeDID2DID,cred_req.credReqJson,credOfferReceived.credOffer);
+        System.out.println("Credential RequestMSG to Send to the Store size in bytes->"+ credential_req.length+" bytes");
         agentCliente.sendD2DMessage(credential_req,connectionTOStore.socket());
         JSONObject credentialResponse=new JSONObject(new String(agentCliente.waitForMessage(connectionTOStore.socket()),
                 Charset.defaultCharset()));
         System.out.println("Credential"+credentialResponse.getString("credential"));
-
+        System.out.println("Received Credentials for Item in LockerBox @address:"+credentialResponse.getString("BoxAddress"));
         String storeCredential=agentCliente.storeCredentialInWallet(null,credDefStructure.credDefId,cred_req.credReqMetadataJson,
                 credentialResponse.getString("credential"),
                 credDefStructure.credDefJson,
                 null);
-        System.out.println("store"+storeCredential);
 
         //ask to box for item! client search the Lockerbox identified by the lockerbox attribute in the credential
         System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
@@ -127,8 +128,7 @@ public class ClienteMarket {
                 portn,"anonCustomer");
         String itemFromBoxResult=box.getItemFromBOX();
         boolean stop=false;
-        while( !( itemFromBoxResult.equals("Success") ||
-                itemFromBoxResult.equals("WrongTime") ) && !stop){
+        while( itemFromBoxResult==null && !stop){
             System.out.println("Wrong Box to ask for Item OR Box is Empty because Item has not arrived yet" +
                     " , want to ask another box or the same box y/n?");
             if(sc.next().equals("y")){
@@ -142,8 +142,11 @@ public class ClienteMarket {
                 stop=true;
                 agentCliente.proverDeleteCredential(itemFromBoxResult);//delete the credential
                 //identified by the credential id returned by getItemFromBox method
+
             }
         }
+        System.out.println("CUSTOMER METRICS after getting Item:\n"+agentCliente.collectMetrics());
+
     }
 
 
@@ -187,7 +190,7 @@ class Customer2Box {
         askForConnectionToBox();
     }
     public void askForConnectionToBox(){
-        box2StoreDID = customerIndy.createDID2DIDComunication(customerName, boxAddress,this.ds);
+        box2StoreDID = customerIndy.createDID2DIDCommunication(customerName, boxAddress,this.ds);
     }
     public String getItemFromBOX(){
         JSONObject messageJOBJECT= new JSONObject();
@@ -202,7 +205,7 @@ class Customer2Box {
             return "WrongTime";
         }
         else{
-            System.out.println("LA PROOF REQUEST ARRIVATA!"+proofRequest);
+            System.out.println("Received proof request "+proofRequest);
             JSONObject proofreqstructure = new JSONObject(proofRequest);
             String proofReq= proofreqstructure.getString("proofrequest");
             ArrayList<String> requested_revealed=new ArrayList<String>(Arrays.asList(proofreqstructure.
@@ -212,19 +215,22 @@ class Customer2Box {
                     customerIndy.
                             returnProverSearchAttrForProof
                                     (proofReq,  requested_revealed);
+            System.out.println("client credential fetch for proof metrics:\n"+customerIndy.collectMetrics());
 
-            String selfAttestedOpeningTime= String.valueOf(System.currentTimeMillis());
-            ProofCreationExtra proof=customerIndy.proverCreateProof(attributesFetched,proofReq,
-                    new String[]{selfAttestedOpeningTime}, null
+            //String selfAttestedOpeningTime= String.valueOf(System.currentTimeMillis());
+            ProofCreationExtra proof=customerIndy.proverCreateProof(attributesFetched,proofReq, null
                     ,null,-1);
+
+            System.out.println("Customer! Created Proof Size in Bytes-> "+proof.proofJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
 
             //ProofCreationExtra proof= customerIndy.returnProverSearchAttrAndCreateProofSimple(proofReq,null,currentTimeofproof);
             //NOTE:Proof with predicates is really big, a device with little memory can't handle it
             System.out.println("Proof Dimension"+proof.proofJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
             JSONObject sendProof= new JSONObject().put("proof",proof.proofJson).put("request","GetItem1").put("cred_defs",proof.credentialDefs)
                     .put("schemas",proof.schemas).put("proofrequest",proof.proofRequestJson);
+
             msg = customerIndy.writeMessage(sendProof.toString(4), box2StoreDID);
-            System.out.println("D2D proof message size (with cred_defs and schemas)"+ msg.length+" bytes");
+            System.out.println("Message to Send to LockerBox encrypted and with proof additional information"+ msg.length+" bytes");
             sendMSG(msg,this.boxAddress);
             String response=receiveMSG(ds);
             boolean resultcheck = response.equals("Success");
@@ -235,8 +241,7 @@ class Customer2Box {
             }
             else{
                 System.out.println("Wrong Box for the given credential");
-                response=attributesFetched.credentialID.get(0);//return the credential_id
-                //in the case the customer decides not to get the item from another box
+                response=null;
             }
             return response;
         }

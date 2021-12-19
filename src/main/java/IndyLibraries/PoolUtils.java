@@ -8,6 +8,7 @@ import org.hyperledger.indy.sdk.pool.PoolJSONParameters;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 public class PoolUtils {
 
@@ -15,7 +16,7 @@ public class PoolUtils {
     public static final int PROTOCOL_VERSION = 2;
 
 
-    private static File createGenesisTxnFile(String filename) throws IOException {
+    private static File createGenesisTxnFile() throws IOException {
         String path = new File("genesis.txn").getPath();
         String testPoolIp = "127.0.0.1";
 
@@ -41,11 +42,43 @@ public class PoolUtils {
         return file;
     }
 
-    public static String createPoolLedgerConfig() throws IOException, InterruptedException, java.util.concurrent.ExecutionException, IndyException {
-        File genesisTxnFile = createGenesisTxnFile("temp.txn");
+    public static String createPoolLedgerConfig()  {
+        File genesisTxnFile = null;
+        try {
+            genesisTxnFile = createGenesisTxnFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         PoolJSONParameters.CreatePoolLedgerConfigJSONParameter createPoolLedgerConfigJSONParameter
                 = new PoolJSONParameters.CreatePoolLedgerConfigJSONParameter(genesisTxnFile.getAbsolutePath());
-        Pool.createPoolLedgerConfig(DEFAULT_POOL_NAME, createPoolLedgerConfigJSONParameter.toJson()).get();
+        try {
+            Pool.createPoolLedgerConfig(DEFAULT_POOL_NAME, createPoolLedgerConfigJSONParameter.toJson()).get();
+        } catch (IndyException e) {
+        } catch (ExecutionException e) {
+            System.out.println("A pool ledger configuration already exists with the specified name");
+        } catch (InterruptedException e) {
+        }
         return DEFAULT_POOL_NAME;
     }
+
+    //creates a PoolLedger config to connect to a Pool generated with the genesis transaction specified in the file
+    //pathToGenesis
+    public static String createPoolLedgerConfig(String poolName,String pathToGenesis)  {
+        File genesisTxnFile = null;
+        genesisTxnFile = new File(pathToGenesis);
+        if(!genesisTxnFile.exists()){
+            return null;
+        }
+        PoolJSONParameters.CreatePoolLedgerConfigJSONParameter createPoolLedgerConfigJSONParameter
+                = new PoolJSONParameters.CreatePoolLedgerConfigJSONParameter(genesisTxnFile.getAbsolutePath());
+        try {
+            Pool.createPoolLedgerConfig(poolName, createPoolLedgerConfigJSONParameter.toJson()).get();
+        } catch (IndyException e) {
+        } catch (ExecutionException e) {
+            System.out.println("A pool ledger configuration already exists with the specified name");
+        } catch (InterruptedException e) {
+        }
+        return DEFAULT_POOL_NAME;
+    }
+
 }
