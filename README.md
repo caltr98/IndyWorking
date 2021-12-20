@@ -1,7 +1,7 @@
 # IndyWorking
 HIghter level libraries for credential issuing and revocation and Shipping an Item use-case implementation
 
-#Requirements
+# Requirements
 #### install IndySDK 
 https://github.com/hyperledger/indy-sdk
 ### install Docker
