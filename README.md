@@ -69,7 +69,7 @@ role in the ledger, StewardThread calls  assignEndorserRole(DIDStructure newEndo
 boolean isTrustAnchor ) from IndyLibraries.StewardAgent .
 Store will add his ipaddress + port with  the method addENdpointToNYM from IndyLibraries.Agent
 
-## Customer to Store 
+##Customer to Store 
 Customer given the desired Store DID, searches for his endpoint the
 ledger, it is a read transaction so even if customer doesn't have a role/identity
 in the Ledger he can do it, with a GetAttrib transaction Customer gets
@@ -125,8 +125,8 @@ ShippingAgent creates a proof based on the credential given from the Store after
 proof request by the LockerBox, the proof request will put restrictions on the values of some
 attributes of the credential.
 
-###Implementation steps 
-ShippingAgent deliver all the Item he has in queue to be delivered, in doing so
+##Implementation steps:
+  ShippingAgent deliver all the Item he has in queue to be delivered, in doing so
   connects to the lockerbox specified by the store during the exchange of the credential
   Box uses method askShippingAgentForProofRequest() to ask for a proof request, this method calls
 the method generateAttrInfoForProofRequest from IndyLibraries. Agent and creates the json object for the 
