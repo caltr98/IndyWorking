@@ -28,6 +28,8 @@ public class SideSideTestIndy {
         Pool pool = null;
         File agentsFile = new File("./agentsFile.json");
         JSONUserCredentialStorage jsonStoredCred = null;
+        //University DID: L8m6zGD1RLXKD4hbYorhXe University VerKey:BRriQz9X2YiD2aDgyfPfnKnHzPeqhCVMbYbZ1U7YVGPV
+
         try {
             jsonStoredCred = new JSONUserCredentialStorage(agentsFile);
         } catch (NoSuchPaddingException | NoSuchAlgorithmException | IOException e) {

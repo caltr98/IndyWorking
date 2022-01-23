@@ -108,7 +108,7 @@ public class MainTestIndy {
         CredRequestStructure credRequestStructure=Studente.returnproverCreateCredentialRequest(credOfferToStudent);
 
         University.createDID();
-        University.createDID();//non è che creare più did sballa il wallet?
+        University.createDID();
         CreateCredentialResult credentialREA=University.returnIssuerCreateCredentialNonRevocable
                 (attributesForSchema,new String[]{"Alice","Alic","55812"},
                 credOfferToStudent.credOffer, credRequestStructure.credReqJson
@@ -312,6 +312,7 @@ public class MainTestIndy {
 		response = Ledger.submitRequest(myPool, request).get();
 		System.out.println("Read RevocReg from Ledger response:\n" + response + "\n");
 		*/
+            //University DID: L8m6zGD1RLXKD4hbYorhXe University VerKey:BRriQz9X2YiD2aDgyfPfnKnHzPeqhCVMbYbZ1U7YVGPV
 
         System.out.println("printing all the way:"+
                 "\n createdProof.request 1: "+createdProof.proofRequestJson

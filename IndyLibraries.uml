@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>JAVA</ID>
+  <OriginalElement>IndyLibraries</OriginalElement>
+  <nodes>
+    <node x="269.0" y="2494.0">IndyLibraries.CredDefStructure</node>
+    <node x="1881.0" y="0.0">IndyLibraries.DID2DIDComm</node>
+    <node x="0.0" y="2242.0">IndyLibraries.ProofAttributesFetched</node>
+    <node x="372.0" y="2242.0">IndyLibraries.JSONUserCredentialStorage</node>
+    <node x="704.0" y="2242.0">IndyLibraries.DIDStructure</node>
+    <node x="0.0" y="2494.0">IndyLibraries.CredRequestStructure</node>
+    <node x="2331.0" y="2242.0">IndyLibraries.CredOfferStructure</node>
+    <node x="466.0" y="1485.1451612903224">IndyLibraries.Endorser</node>
+    <node x="1256.4205069124423" y="2089.0">IndyLibraries.Trustee</node>
+    <node x="776.0" y="2494.0">IndyLibraries.AskDID2DIDresult</node>
+    <node x="498.0" y="2494.0">IndyLibraries.RevocationRegistryDelta</node>
+    <node x="2063.0" y="2242.0">IndyLibraries.CreateCredentialResult</node>
+    <node x="1447.0" y="2242.0">IndyLibraries.ProofCreationExtra</node>
+    <node x="378.5" y="25.0">IndyLibraries.Agent</node>
+    <node x="1156.0" y="2242.0">IndyLibraries.RevocationRegistryObject</node>
+    <node x="1692.0" y="2242.0">IndyLibraries.PoolUtils</node>
+    <node x="80.0" y="2078.0">IndyLibraries.StewardAgent</node>
+    <node x="932.0" y="2242.0">IndyLibraries.SchemaStructure</node>
+    <node x="2038.6232718894014" y="784.455069124424">IndyLibraries.IndyJsonStringBuilder</node>
+    <node x="1004.0" y="2494.0">IndyLibraries.PackageLocker</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="IndyLibraries.StewardAgent" target="IndyLibraries.Endorser" relationship="GENERALIZATION">
+      <point x="0.0" y="-59.5" />
+      <point x="263.0" y="2053.0" />
+      <point x="825.0" y="2053.0" />
+      <point x="0.0" y="268.5" />
+    </edge>
+    <edge source="IndyLibraries.Trustee" target="IndyLibraries.Endorser" relationship="GENERALIZATION">
+      <point x="0.0" y="-48.5" />
+      <point x="1420.4205069124423" y="2053.0" />
+      <point x="825.0" y="2053.0" />
+      <point x="0.0" y="268.5" />
+    </edge>
+    <edge source="IndyLibraries.Endorser" target="IndyLibraries.Agent" relationship="GENERALIZATION">
+      <point x="0.0" y="-268.5" />
+      <point x="0.0" y="720.5" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic" zoom="0.3352645809192738" showDependencies="false" x="1268.5" y="1284.5" />
+  <SelectedNodes>
+    <node>IndyLibraries.Agent</node>
+  </SelectedNodes>
+  <Categories>
+    <Category>Fields</Category>
+    <Category>Methods</Category>
+  </Categories>
+  <SCOPE>All</SCOPE>
+  <VISIBILITY>public</VISIBILITY>
+</Diagram>
+

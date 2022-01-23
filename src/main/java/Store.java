@@ -787,7 +787,7 @@ public class Store {
             CredOfferStructure credOffer= StoreIndy.returnCredentialOffer(
                     shipmentCredential.credDefId);
 
-            System.out.println("Store CredentialOffer to ShippingAgent size in bytes"+ credOffer.credOffer.getBytes(StandardCharsets.UTF_8)+" bytes");
+            System.out.println("Store CredentialOffer to ShippingAgent size in bytes"+ credOffer.credOffer.getBytes(StandardCharsets.UTF_8).length+" bytes");
             JSONObject offerJSONObj= new JSONObject();
             offerJSONObj.put("credDefId",credOffer.credDef.credDefId);
             offerJSONObj.put("credDef",credOffer.credDef.credDefJson);
@@ -817,7 +817,7 @@ public class Store {
                  msg=StoreIndy.writeMessage(tosend,ShippingAgent2StoreDID);
                  sendMSG(msg,this.boxAddress);
 
-                System.out.println("Store Credential created for ShippingAgent size in bytes"+ ret.credentialJson.getBytes(StandardCharsets.UTF_8)+" bytes");
+                System.out.println("Store Credential created for ShippingAgent size in bytes"+ ret.credentialJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
                 System.out.println("Store CredentialMSG  ShippingAgent size in bytes"+ msg.length+" bytes");
 
                 return true;

@@ -53,7 +53,7 @@ public class Endorser extends Agent {
                     IndyJsonStringBuilder.createSchemaAttributesString(schemaAttributes)).get();
             String schemaRequest = Ledger.buildSchemaRequest(this.mainDID.didName, createSchemaResult.getSchemaJson()).get();
             String s=Ledger.signAndSubmitRequest(this.poolConnection, this.mainWallet, this.mainDID.didName, schemaRequest).get();
-            //System.out.println("string submitted "+ s);
+            System.out.println("string submitted "+ s);
         } catch (InterruptedException e) {
             e.printStackTrace();
             return null;
@@ -101,20 +101,15 @@ public class Endorser extends Agent {
     }
     public String publishRevocationRegistryEntry(RevocationRegistryObject revocationRegistry, String
                                                   registryDelta,long time){
-        //blocco fondamentale : revocation Registry definition viene definita solo quando , si aggiunge ad una
-        //credential definition già pubblicata senza revocation registry o non con questo nuovo revocation registry
 
+        //Publish on ledger a revocation registry delta entry.
         AnoncredsResults.IssuerCreateSchemaResult createSchemaResult =
                 null;
-        String schemaId;
         String schemaJson;
         SchemaStructure schemaStructure;
         LedgerResults.ParseResponseResult publishRevRegResult=null;
         String s= null;
         String toRevokeee;
-        String revregistry;
-        String revCredDef;
-        String extra,extra2;
         try {
 
             Anoncreds.createRevocationState(revocationRegistry.blobStorageReaderHandle,revocationRegistry.revRegDefJson,

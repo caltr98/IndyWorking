@@ -101,6 +101,9 @@ public class sideTestIndy {
 
         System.out.println("credential offer: \n"+new JSONObject(credOfferToStudent.credOffer).toString(4)+"\n");
         CredRequestStructure credRequestStructure=Studente.returnproverCreateCredentialRequest(credOfferToStudent);
+        System.out.println("credential request: \n"+new JSONObject(credRequestStructure.credReqJson ).toString(4)+"\n");
+        System.out.println("credential request METADATA: \n"+new JSONObject(credRequestStructure.credReqMetadataJson ).toString(4)+"\n");
+
         CreateCredentialResult credential=University.returnIssuerCreateCredential(attributesForSchema,new String[]{"Alice"},
                 credOfferToStudent.credOffer, credRequestStructure.credReqJson,revreg
         );

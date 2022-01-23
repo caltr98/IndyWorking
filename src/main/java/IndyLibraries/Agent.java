@@ -530,7 +530,7 @@ public class Agent {
             revRegDefJson = getRevocationDefinition(revRegDefID);
         }
         try {
-            credentialWalletReferent = Anoncreds.proverStoreCredential(this.mainWallet, credentialID, credReqMetadataJson, credential,
+                credentialWalletReferent = Anoncreds.proverStoreCredential(this.mainWallet, credentialID, credReqMetadataJson, credential,
                     credDefJson, revRegDefJson).get();
             System.out.println("stored credential"+credentialWalletReferent);
             CredDefsCollection.put(credDefId, credDefStructure);
@@ -1658,5 +1658,10 @@ public class Agent {
         }
         return null;
 
+    }
+
+    public void setMyDID(String did, String verkey) {
+        this.mainDID=new DIDStructure(did,verkey);
+        this.DIDCollection.put(did,this.mainDID);
     }
 }
