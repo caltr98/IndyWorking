@@ -238,7 +238,7 @@ public class DID2DIDComm {
         System.out.println("message sended");
         //closes output and returns EOF to the receiver
         String receivedMessage = readMessage(connectionSocket);
-        System.out.println("received message"+ receivedMessage);
+
         if (receivedMessage != null) {
             String[] MsgFields = receivedMessage.split("-\r");
             if (MsgFields != null) {

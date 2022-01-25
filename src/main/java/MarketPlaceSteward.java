@@ -40,11 +40,9 @@ public class MarketPlaceSteward {
         try {
             Pool.setProtocolVersion(2).get();
             poolName = IndyLibraries.PoolUtils.createPoolLedgerConfig();
-
             pool = Pool.openPoolLedger(poolName, "{}").get();
             AgentListenChannel = ServerSocketChannel.open();
             AgentListenChannel.socket().bind(null);
-
             listeningAddress = (InetSocketAddress) AgentListenChannel.getLocalAddress();
             System.out.println("IndyLibraries.Agent default Steward Listening Adress:" + listeningAddress);
 
@@ -69,7 +67,6 @@ public class MarketPlaceSteward {
         indySteward.OpenWallet("mainSteward", "pass");
         System.out.println("MarketPlaceDID " +
         indySteward.createDID(stewardSeed));
-
         //add endpoint to NYM Object in Ledger to talk with Steward
         //inserting address 127.0.0.1 for localhost
         indySteward.addENdpointToNYM("did2did","127.0.0.1:"+listeningAddress.getPort());

@@ -11,6 +11,7 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -242,6 +243,7 @@ public class LockerBoxAgent implements Runnable {
                     this.isReserved = false;
                     sendMSG(msg, currentTalker);
                     this.isOccupied=true;
+                    startTimer();
                     return "Success proof is : \n"+proofReceived;
                 }
             }
@@ -279,7 +281,6 @@ public class LockerBoxAgent implements Runnable {
         }
         if(messageJOBJECT.getString("request").equals("GetItem1")){
             String proofReceived  = messageJOBJECT.getString("proof");
-            //NOTE: schemas and cred defs must be the same returned by the prover
             String proofrequestreceived= messageJOBJECT.getString("proofrequest");
             String schemasReceived =messageJOBJECT.getString("schemas");
             String creddefsReceived=messageJOBJECT.getString("cred_defs");
@@ -298,7 +299,6 @@ public class LockerBoxAgent implements Runnable {
             if(verifyRes) {
                 //CHECK openingTime is within the allowed time limits
                 byte[] msg=null;
-                //String openBoxResult=openBox(proofReceived);
                 long currentOpeningTime = System.currentTimeMillis();
                 String openBoxResult="validproof";
                 if(currentOpeningTime>=this.timestampcanopen && currentOpeningTime<=this.timestampreturnitem){
@@ -311,16 +311,14 @@ public class LockerBoxAgent implements Runnable {
                     msg = IndyLockerBox.writeMessage("Success", addresstodid.get(currentTalker));
                     this.isOccupied = false ;
                     sendMSG(msg, currentTalker);
-
                     return "Success proof is : \n"+proofReceived;
-
-                }
+                }/*cannot happen given current restrictions
                 else if(openBoxResult.equals("InvalidProof")){
+                    //neger
                     msg = IndyLockerBox.writeMessage("WrongItem", addresstodid.get(currentTalker));
                     sendMSG(msg, currentTalker);
                     return "Failure proof is valid but not for the current Item";
-
-                }
+                }*/
                 else{
                     msg = IndyLockerBox.writeMessage("WrongTime", addresstodid.get(currentTalker));
                     sendMSG(msg, currentTalker);
@@ -338,6 +336,17 @@ public class LockerBoxAgent implements Runnable {
         return "Wrong Message";
     }
 
+    private void startTimer() {
+        //timer can be implemented with a thread that wakes up and sends a proof request
+
+        //mock method -> 1 in 10 possibility of timer elapisng
+        Random r = new Random();
+        int i = r.nextInt(9) + 1;
+        if(i == 10){
+            timestampreturnitem = Long.valueOf(0); //check will always return false in handleMessage().
+        }
+    }
+
     private String insertItemInBox(String proofReceived) {
         Long currentTime;
         JSONObject proofStructure = new JSONObject(proofReceived);
@@ -351,8 +360,7 @@ public class LockerBoxAgent implements Runnable {
             this.isReserved= true;
             return "Success";
         }
-        return   "WrongTime";
-
+        return "WrongTime";
     }
 
     private void sendMSG(String msg,InetSocketAddress theirAddress) {
@@ -446,16 +454,16 @@ public class LockerBoxAgent implements Runnable {
         // check for equality ( it protects the customer so that if he sends a wrong credential
         // the lockerbox will not know he has the credential for another item shipping )
         arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest(null,
-                new String[]{"lockerboxid","shippingnonce","shippingid"},
+                new String[]{"shippingnonce","shippingid"},
                 null,null,null,null,
-                this.storedid,this.shippingcreddefid,new String[]{"lockerboxid","shippingnonce","shippingid"
+                this.storedid,this.shippingcreddefid,new String[]{"shippingnonce","shippingid"
                 },
                 new String []{this.boxName,this.shippingNonce,this.shippingId},null,currenttime,currenttime);
-
-
+        System.out.println("attrinfo - request - structure\n"+arrayofAttrreq[0].toString(4));
         String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
                 ,"1.0","1.0",
                 arrayofAttrreq,null,currenttime,currenttime);
+        System.out.println("proof - request - Body\n"+proofReqbody);
         System.out.println("LockerBox to Customer proof request size"+ proofReqbody.length());
         return proofReqbody;
     }

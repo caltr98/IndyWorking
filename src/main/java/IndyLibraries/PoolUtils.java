@@ -49,8 +49,13 @@ public class PoolUtils {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        //Static wrapper method, inserts into a map structure the
+        //genesis transaction
+        //the result is something like
+        //{"genesis_txn":"/home/calogero/IdeaProjects/IndyDemo/genesis.t//xn"}
         PoolJSONParameters.CreatePoolLedgerConfigJSONParameter createPoolLedgerConfigJSONParameter
                 = new PoolJSONParameters.CreatePoolLedgerConfigJSONParameter(genesisTxnFile.getAbsolutePath());
+        System.out.println("Poolconfig\n"+createPoolLedgerConfigJSONParameter.toString());
         try {
             Pool.createPoolLedgerConfig(DEFAULT_POOL_NAME, createPoolLedgerConfigJSONParameter.toJson()).get();
         } catch (IndyException e) {

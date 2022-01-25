@@ -168,9 +168,7 @@ public class Agent {
     }
     //create DID based on Seed
     public String createDID(String didSeed) {
-        String DID = null;
-        String DIDVerkey = null;
-        DIDStructure didStructure;
+        //wrapper structure for result
         DidResults.CreateAndStoreMyDidResult AgentDIDResult =
                 null;
         try {
@@ -186,7 +184,6 @@ public class Agent {
             e.printStackTrace();
         }
         return addDIDToCollectionSetMainDid(AgentDIDResult);
-
     }
 
     private String addDIDToCollectionSetMainDid(DidResults.CreateAndStoreMyDidResult agentDIDResult) {
@@ -281,10 +278,10 @@ public class Agent {
 
     //get SchemaJson from ledger and add the IndyLibraries.SchemaStructure to the IndyLibraries.Agent Collection
     public String getATTRIBFromLedger(String destDID, String optRaw, String optHash, String optencryptedval) {
-        String responseNym = null;
         if(optRaw == null && optencryptedval == null && optHash== null)
             return null;
         try {
+            //buildGetAttribRequest( String submitterDid, String targetDid, String raw, String hash, String enc )
             String getAttribRequest = Ledger.buildGetAttribRequest(this.mainDID.didName, destDID,
                     optRaw, optHash, optencryptedval).get();
             String s = Ledger.submitRequest(this.poolConnection, getAttribRequest).get();
@@ -529,7 +526,7 @@ public class Agent {
         if (revRegDefID != null) {//we need to retrieve the revocation registry definition for this credential
             revRegDefJson = getRevocationDefinition(revRegDefID);
         }
-        try {
+        try {   //if credentialID is null, it will be assigned randomly
                 credentialWalletReferent = Anoncreds.proverStoreCredential(this.mainWallet, credentialID, credReqMetadataJson, credential,
                     credDefJson, revRegDefJson).get();
             System.out.println("stored credential"+credentialWalletReferent);
@@ -708,6 +705,7 @@ public class Agent {
                                                          String credentialDefs) {
 
         Boolean valid = false;
+        //create two empty json objects
         String revocRegDefs = new JSONObject().toString(4);
         String revocRegs = new JSONObject().toString(4);
         try {
@@ -800,8 +798,6 @@ public class Agent {
     }
 
     public ProofAttributesFetched returnProverSearchAttrForProof(String proofRequestJson,ArrayList<String> requestedRevealed) {
-        //NECESSARIO CREARE UN'ALGORITMO CHE PER OGNI CREDENZIALE DEL CARO AGENT, CONTROLLI CHE CORRISPONDA AD
-        //UNA REFERENCE CHE HA LUI
         JSONArray jsonArray;
         String credentialIdForAttribute, tmpcredId, tmpSchemaId, tmpRevRegistryId, tmpRevCredRegistryId;
         ArrayList<String> credentialID = new ArrayList<>();
@@ -1405,7 +1401,6 @@ public class Agent {
         JSONObject jsonObject = new JSONObject(endpointFromLedger);
         System.out.println("endpoint\n"+
                 endpointFromLedger);
-
         String endpointdata =jsonObject.getJSONObject("result").getString("data");
         String jsonObjectENDPOINT = new JSONObject(endpointdata).getJSONObject("endpoint").getString("did2did");
         //System.out.println("endpoint=IP:PORT"+jsonObjectENDPOINT);

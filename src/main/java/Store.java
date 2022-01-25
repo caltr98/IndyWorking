@@ -69,13 +69,14 @@ public class Store {
             SocketChannel connectionTOSteward =SocketChannel.open();
             connectionTOSteward.connect(new InetSocketAddress(componentsOfEndpoint[0],
                     Integer.parseInt(componentsOfEndpoint[1])));
-            String stewardDID2DID = StoreIndy.createConnection(connectionTOSteward.socket(),this.storeName);
-
-
+            //DID to DID communication setup
+            String store_to_stewardDID2DID = StoreIndy.createConnection(connectionTOSteward.socket(),this.storeName);
+            //Message ask for Endorser role creation
             byte[]request=StoreIndy.writeMessage(StoreIndy.
-                    askForEndorserRoleRequest(true),stewardDID2DID);
+                    askForEndorserRoleRequest(true),store_to_stewardDID2DID);
             StoreIndy.sendD2DMessage(request,connectionTOSteward.
                     socket());
+            //read response
             String response=new String((StoreIndy.waitForMessage(connectionTOSteward.
                     socket())),
                     Charset.defaultCharset());

@@ -29,6 +29,7 @@ public class StewardAgent extends Endorser {
         try {
             nymRequest = Ledger.buildNymRequest(mainDID.didName,
                     newEndorserDid.didName, newEndorserDid.didVerKey, null, endorserMeaning).get();
+            System.out.println(new JSONObject(nymRequest).toString(4));
             nymResponseJson = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, nymRequest).get();
             //System.out.println(nymResponseJson);
         } catch (InterruptedException e) {
@@ -44,29 +45,7 @@ public class StewardAgent extends Endorser {
         return true;
     }
 
-    //can only add attribute to his own nym
-    //TODO Must be Tested
-    public boolean addAttributeToNYM(String[] rawID, String[] rawValues){
-        String attribReq;
-        String attribResponse;
-        String raw = IndyJsonStringBuilder.buildRawAttrJSON(rawID,rawValues);
-        try {
-            attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
-                    , null, "{\"endpoint\":{\"ha\":\"127.0.0.1:5555\"}}",null).get();
-            attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
-            System.out.println("addAttribute Response : "+ attribResponse);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return false;
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-            return false;
-        } catch (IndyException e) {
-            e.printStackTrace();
-            return false;
-        }
-        return true;
-    }
+    //NOTE:can only add attribute to his own nym
     public boolean addENdpointToNYM(String endpointName,String endpointAddres){
         String attribReq;
         String attribResponse;
@@ -92,8 +71,9 @@ public class StewardAgent extends Endorser {
     public String GetvalidatorInfo(){
         try {
             String validatorInfoReq=buildGetValidatorInfoRequest(this.mainDID.didName).get();
-            //validator info request must be sent to specifics node
+            //validator info request must can be sent to specific node
             String SignedvalidatorInfoReq=signRequest(this.mainWallet,this.mainDID.didName,validatorInfoReq).get();
+            //submitAction(Pool pool,String requestJson,String nodes,int timeout)
             String requestResult=submitAction(this.poolConnection,SignedvalidatorInfoReq,null,-1).get();
             System.out.println(requestResult);
             JSONObject result = new JSONObject(requestResult);

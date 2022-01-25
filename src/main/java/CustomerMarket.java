@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
 
-public class ClienteMarket {
+public class CustomerMarket {
     public static void main(String[] args) throws IOException {
         System.out.println("Insert a known store DID");
         Scanner sc = new Scanner(System.in);
@@ -44,30 +44,30 @@ public class ClienteMarket {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Agent agentCliente = new Agent(pool,"cliente7",jsonStoredCred);
-        agentCliente.CreateWallet("walletCliente206","abcd");
-        agentCliente.OpenWallet("walletCliente206","abcd");
-        agentCliente.createDID();
+        Agent agentCustomer = new Agent(pool,"cliente7",jsonStoredCred);
+        agentCustomer.CreateWallet("walletCliente206","abcd");
+        agentCustomer.OpenWallet("walletCliente206","abcd");
+        agentCustomer.createDID();
         //open comunication with store
 
 
-        String endpointSteward = agentCliente.getEndPointFromLedger(storeDID);
+        String endpointSteward = agentCustomer.getEndPointFromLedger(storeDID);
         String[] componentsOfEndpoint= endpointSteward.split(":");
-        String endpoitTransportKey = agentCliente.getDIDVerKeyFromLedger(storeDID);//it is the DID verkey
+        String endpoitTransportKey = agentCustomer.getDIDVerKeyFromLedger(storeDID);//it is the DID verkey
         SocketChannel connectionTOStore =SocketChannel.open();
         connectionTOStore.connect(new InetSocketAddress(componentsOfEndpoint[0],
                 Integer.parseInt(componentsOfEndpoint[1])));
 
-        String storeDID2DID = agentCliente.createConnection(connectionTOStore.socket(),"cliente");
+        String storeDID2DID = agentCustomer.createConnection(connectionTOStore.socket(),"cliente");
 
         //richiesta Items verso Store
 
         JSONObject request = new JSONObject();
         request.put("request","Cred_Request_0");
 
-        agentCliente.sendD2DMessage(agentCliente.askForCredentialMSG(storeDID2DID),
+        agentCustomer.sendD2DMessage(agentCustomer.askForCredentialMSG(storeDID2DID),
                 connectionTOStore.socket());
-        String response=new String((agentCliente.waitForMessage(connectionTOStore.socket())),
+        String response=new String((agentCustomer.waitForMessage(connectionTOStore.socket())),
                 Charset.defaultCharset());
         System.out.println("Response \n"+
                 response);
@@ -86,8 +86,8 @@ public class ClienteMarket {
 
         //BEFORE
 
-        agentCliente.createMasterSecret("3b80a521-cf9d-4076-b29c-91741254a665");
-        CredRequestStructure cred_req=agentCliente.returnproverCreateCredentialRequest(credOfferReceived);
+        agentCustomer.createMasterSecret("3b80a521-cf9d-4076-b29c-91741254a665");
+        CredRequestStructure cred_req=agentCustomer.returnproverCreateCredentialRequest(credOfferReceived);
         System.out.println("request format \n"+
                 cred_req.credReqJson);
 
@@ -98,24 +98,24 @@ public class ClienteMarket {
         jsonObjectItemOrder.put("request","Order_Item");
         jsonObjectItemOrder.put("itemSelection",selectedItem);
 
-        byte[]orderMessage=agentCliente.writeMessage(jsonObjectItemOrder.toString(),storeDID2DID);
-        agentCliente.sendD2DMessage(orderMessage, connectionTOStore.socket());
+        byte[]orderMessage=agentCustomer.writeMessage(jsonObjectItemOrder.toString(),storeDID2DID);
+        agentCustomer.sendD2DMessage(orderMessage, connectionTOStore.socket());
 
-        String itemOrderResponse=new String(agentCliente.waitForMessage(connectionTOStore.socket()),
+        String itemOrderResponse=new String(agentCustomer.waitForMessage(connectionTOStore.socket()),
                 Charset.defaultCharset());
         System.out.println(itemOrderResponse);
 
 
         System.out.println("Customer Credential Request size in bytes ->"+ cred_req.credReqJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
 
-        byte[] credential_req=agentCliente.credentialRequestMSG(storeDID2DID,cred_req.credReqJson,credOfferReceived.credOffer);
+        byte[] credential_req=agentCustomer.credentialRequestMSG(storeDID2DID,cred_req.credReqJson,credOfferReceived.credOffer);
         System.out.println("Credential RequestMSG to Send to the Store size in bytes->"+ credential_req.length+" bytes");
-        agentCliente.sendD2DMessage(credential_req,connectionTOStore.socket());
-        JSONObject credentialResponse=new JSONObject(new String(agentCliente.waitForMessage(connectionTOStore.socket()),
+        agentCustomer.sendD2DMessage(credential_req,connectionTOStore.socket());
+        JSONObject credentialResponse=new JSONObject(new String(agentCustomer.waitForMessage(connectionTOStore.socket()),
                 Charset.defaultCharset()));
         System.out.println("Credential"+credentialResponse.getString("credential"));
         System.out.println("Received Credentials for Item in LockerBox @address:"+credentialResponse.getString("BoxAddress"));
-        String storeCredential=agentCliente.storeCredentialInWallet(null,credDefStructure.credDefId,cred_req.credReqMetadataJson,
+        String storeCredential=agentCustomer.storeCredentialInWallet(null,credDefStructure.credDefId,cred_req.credReqMetadataJson,
                 credentialResponse.getString("credential"),
                 credDefStructure.credDefJson,
                 null);
@@ -124,7 +124,7 @@ public class ClienteMarket {
         System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
         int portn=sc.nextInt();
 
-        Customer2Box box = new Customer2Box(agentCliente,"127.0.0.1",
+        Customer2Box box = new Customer2Box(agentCustomer,"127.0.0.1",
                 portn,"anonCustomer");
         String itemFromBoxResult=box.getItemFromBOX();
         boolean stop=false;
@@ -134,19 +134,19 @@ public class ClienteMarket {
             if(sc.next().equals("y")){
                 System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
                 portn=sc.nextInt();
-                box = new Customer2Box(agentCliente,"127.0.0.1",
+                box = new Customer2Box(agentCustomer,"127.0.0.1",
                         portn,"anonCustomer");
                 itemFromBoxResult=box.getItemFromBOX();
             }
             else{
                 stop=true;
-                agentCliente.proverDeleteCredential(itemFromBoxResult);//delete the credential
+                agentCustomer.proverDeleteCredential(itemFromBoxResult);//delete the credential
                 //identified by the credential id returned by getItemFromBox method
 
             }
         }
-        System.out.println("CUSTOMER METRICS after getting Item:\n"+agentCliente.collectMetrics());
-
+        System.out.println("CUSTOMER METRICS after getting Item:\n"+agentCustomer.collectMetrics());
+        System.out.println("SUCESS!! Item "+selectedItem+" collected");
     }
 
 
@@ -208,13 +208,13 @@ class Customer2Box {
             System.out.println("Received proof request "+proofRequest);
             JSONObject proofreqstructure = new JSONObject(proofRequest);
             String proofReq= proofreqstructure.getString("proofrequest");
-            ArrayList<String> requested_revealed=new ArrayList<String>(Arrays.asList(proofreqstructure.
+            ArrayList<String> requested_attributes=new ArrayList<String>(Arrays.asList(proofreqstructure.
                     getJSONArray("requested_revealed_attributes").toList().
                     toArray(String[]::new)));
             ProofAttributesFetched attributesFetched=
                     customerIndy.
                             returnProverSearchAttrForProof
-                                    (proofReq,  requested_revealed);
+                                    (proofReq,  requested_attributes);
             System.out.println("client credential fetch for proof metrics:\n"+customerIndy.collectMetrics());
 
             //String selfAttestedOpeningTime= String.valueOf(System.currentTimeMillis());

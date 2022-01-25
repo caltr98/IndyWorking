@@ -13,7 +13,7 @@ https://github.com/Patrik-Stas/indyscan/tree/master/start
 5 Different processes:
 - Store->STOREMAINTEST
 - Lockerbox->LockerboxMainTest
-- Customer->ClienteMarket
+- Customer->CustomerMarket
 - ShippingAgent->ShippingAgentMainTest
 - Steward -> MarketPlaceSteward
 

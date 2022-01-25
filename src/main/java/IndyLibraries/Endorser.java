@@ -274,7 +274,9 @@ public class Endorser extends Agent {
             System.out.println(jsonObjectAttr.toString(4));
             System.out.println("credOffer "+credOffer);
             System.out.println("credReq "+credReqJson);
-
+            /*
+            IssuerCreateCredentialResult> issuerCreateCredential(Wallet wallet,String credOfferJson,String credReqJson,
+            String credValuesJson,String revRegId,int blobStorageReaderHandle )*/
             createCredentialResult = Anoncreds.issuerCreateCredential(this.mainWallet, credOffer, credReqJson, jsonObjectAttr.toString(), null,
                     -1).get();
         } catch (InterruptedException e) {
@@ -614,12 +616,13 @@ public class Endorser extends Agent {
         return true;
     }
     public boolean addENdpointToNYM(String endpointName,String endpointAddres){
-        String attribReq;
-        String attribResponse;
+        String attribReq, attribResponse;
         String raw = IndyJsonStringBuilder.endpointJson(endpointName,endpointAddres);
         try {
+            //buildAttribRequest(String submitterDid,String targetDid, String hash, String raw, String enc )
             attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
                     , null, raw,null).get();
+            //signAndSubmitRequest(Pool pool,Wallet wallet,String submitterDid,String requestJson)
             attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
             System.out.println("addAttribute Response : "+ attribResponse);
         } catch (InterruptedException e) {
