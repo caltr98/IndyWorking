@@ -1,4 +1,4 @@
-package OldTests;
+package SideTests;
 
 import IndyLibraries.*;
 import org.hyperledger.indy.sdk.IndyException;

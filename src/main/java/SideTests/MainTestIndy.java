@@ -1,7 +1,6 @@
-package OldTests;
+package SideTests;
 //WARNING: un-tested!it can be used as a reference for revocation
 import IndyLibraries.*;
-import OldTests.sideTestIndy;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.anoncreds.Anoncreds;
 import org.hyperledger.indy.sdk.ledger.Ledger;

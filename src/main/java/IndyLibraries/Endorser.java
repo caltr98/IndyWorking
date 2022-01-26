@@ -24,6 +24,8 @@ import static org.hyperledger.indy.sdk.ledger.Ledger.*;
 
 
 public class Endorser extends Agent {
+    String transactionAuthotAgreement;
+    String taaAcceptanceMechanism;
 
     public Endorser(Pool poolConnection, String agentName, JSONUserCredentialStorage agentsFile) {
         super(poolConnection, agentName,agentsFile);

@@ -1,4 +1,4 @@
-package OldTests;
+package SideTests;
 
 import IndyLibraries.DIDStructure;
 import IndyLibraries.JSONUserCredentialStorage;

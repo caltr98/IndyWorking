@@ -1,12 +1,8 @@
-package OldTests;
+package SideTests;
 
 import IndyLibraries.*;
 import org.hyperledger.indy.sdk.IndyException;
-import org.hyperledger.indy.sdk.crypto.Crypto;
-import org.hyperledger.indy.sdk.did.Did;
-import org.hyperledger.indy.sdk.pairwise.Pairwise;
 import org.hyperledger.indy.sdk.pool.Pool;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
@@ -15,7 +11,7 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutionException;
 
-import static OldTests.sideTestIndy.getUnixTimeStamp;
+import static SideTests.sideTestIndy.getUnixTimeStamp;
 import static java.lang.Thread.sleep;
 
 public class ErasmusUniversity {
