@@ -8,7 +8,6 @@ import java.util.Scanner;
 
 public class STOREMAINTEST {
     public static void main(String[] args) {
-
         System.out.println("Create a new Store? y/n or default?");
         Scanner sc= new Scanner(System.in);
         Store store;
@@ -22,7 +21,7 @@ public class STOREMAINTEST {
             store = new Store("INDYSCANPOOL", storename, storewalletpass); //Create a new Store identity on Ledger
         }
         else if (a.equals("n")){
-            System.out.println("insert store DID value (remember to save it)");
+            System.out.println("insert store DID value (rember to save it)");
             storeDID = sc.next();
             System.out.println("insert storeName");
             storename = sc.next();
@@ -32,8 +31,9 @@ public class STOREMAINTEST {
 
         }
         else {
+            //Note: default must be setup first
             store = new Store("INDYSCANPOOL",
-                    "nomeStore123", "4F19BBTTpFRSwtFJQQ2B2t", "abcd"); //insert an already created store did and wallet pass here
+                    "nomeStore123", "YRDrcLTz9CB4Ly8PbtLB2i", "abcd"); //insert an already created store did and wallet pass here
         }
 
         store.addItem("Penna");

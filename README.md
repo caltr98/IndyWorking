@@ -14,7 +14,7 @@ https://github.com/Patrik-Stas/indyscan/tree/master/start
 - Store->STOREMAINTEST
 - Lockerbox->LockerboxMainTest
 - Customer->CustomerMarket
-- ShippingAgent->ShippingAgentMainTest
+- ShippingDeliverer->ShippingDelivererMainTest
 - Steward -> MarketPlaceSteward
 
 # Setup connection to Pool
@@ -103,11 +103,11 @@ that call the method Anoncreds.issuerCreateCredential(...) creating a  credentia
 CustomerShippingschema.
 
 
-## Store to ShippingAgent
+## Store to ShippingDeliverer
 StoreThread-2 after reserving a LockerBox for an Item will then proceed to give the task of shipping it to a
-ShippingAgent,StoreThread-2 connects ShippingAgent given his ip and sends request to deliver an Item,
-Store class contains Store2ShippingAgent inner class to create Objects for handling the communication with ShippingAgent
-StoreThread-2 gives to the ShippingAgent a credential to open the Box and insert the Item (a credential from schema
+ShippingDeliverer,StoreThread-2 connects ShippingDeliverer given his ip and sends request to deliver an Item,
+Store class contains Store2ShippingAgent inner class to create Objects for handling the communication with ShippingDeliverer
+StoreThread-2 gives to the ShippingDeliverer a credential to open the Box and insert the Item (a credential from schema
 Shipment)
 
 ### Implementation Steps
@@ -120,23 +120,23 @@ Store connects to LockerBox given is ip address + port, in the process of shippi
 customer Store tries to reserve the LockerBox for the Item, Store can use more than one Box for
 shipping different Items.If LockerBox is not already reserved for another Item or it's not already occupied by an Item,
 then Store provision LockerBox with the values of the parameter to insert in the proof request
-to the Customer and ShippingAgent to be created by the LockerBox.
+to the Customer and ShippingDeliverer to be created by the LockerBox.
 
 ### Implementation Steps
 Store setups a connection to Box with askForConnectionToBox() and ask to reserve Box with
 reserveBoxForItem,LockerBox handles request InsertItem using method occupyBOX(...)
 
-## ShippingAgent to LockerBox
-ShippingAgent deliver all the Item he has in queue to be delivered, in doing so
+## ShippingDeliverer to LockerBox
+ShippingDeliverer deliver all the Item he has in queue to be delivered, in doing so
 connects to the lockerbox specified by the store during the exchange of the credential
-ShippingAgent creates a proof based on the credential given from the Store after received a
+ShippingDeliverer creates a proof based on the credential given from the Store after received a
 proof request by the LockerBox, the proof request will put restrictions on the values of some
 attributes of the credential.
 
 
 ### Implementation steps
 
-ShippingAgent deliver all the Item he has in queue to be delivered, in doing so
+ShippingDeliverer deliver all the Item he has in queue to be delivered, in doing so
 connects to the lockerbox specified by the store during the exchange of the credential
 Box uses method askShippingAgentForProofRequest() to ask for a proof request, this method calls
 the method generateAttrInfoForProofRequest from IndyLibraries. Agent and creates the json object for the
@@ -146,7 +146,7 @@ proof request.
 ShippingAgentcalls the methodreturnProverSearchAttrForProof(String proofRequestJson,ArrayList/<String/>requestedRevealed) creates a
 proof from IndyLibraries.Agentthat calls the methods CredentialsSearchForProofReq.open(..) and
 credentialsSearch.fetchNextCredentials(..) to search for credential in the wallet.
-With the fetched credential ShippingAgent calls proverCreateProof(ProofAttributesFetched fetchedAttrProofs,
+With the fetched credential ShippingDeliverer calls proverCreateProof(ProofAttributesFetched fetchedAttrProofs,
 String proofRequestJson, String[] selfAttestedListValues, Long timestamp,
 int blobreaderhandle) from IndyLibraries.Agent, that calls the Indy-SDK method Anoncreds.proverCreateProof(..)
 to create proof.
@@ -158,12 +158,12 @@ to currenttime+shipmentavailabilitytime (Attribute from proof that must be in th
 
 
 ## Customer to Box
-Customer connects to box and if box is not empty(meeanign that ShippingAgent has done his job before) then Customer can present his
+Customer connects to box and if box is not empty(meeanign that ShippingDeliverer has done his job before) then Customer can present his
 proof to LockerBox, if proof is valid then LockerBox checks that it arrived in the timeframe where shipment is availabile to Customer.
 
 
 ## Implementation Steps
-Steps are similar to those of ShippingAgent to Box,except for the check
+Steps are similar to those of ShippingDeliverer to Box,except for the check
 of opening time after providing the proof to LockerBox.
 
 

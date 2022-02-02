@@ -1,6 +1,7 @@
 import IndyLibraries.*;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.pool.Pool;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
 
-public class CustomerMarket {
+public class scammerCustomer {
     public static void main(String[] args) throws IOException {
         System.out.println("Insert a known store DID");
         Scanner sc = new Scanner(System.in);
@@ -124,7 +125,7 @@ public class CustomerMarket {
         System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
         int portn=sc.nextInt();
 
-        Customer2Box box = new Customer2Box(agentCustomer,"127.0.0.1",
+        ScammerCustomer2Box box = new ScammerCustomer2Box(agentCustomer,"127.0.0.1",
                 portn,"anonCustomer");
         String itemFromBoxResult=box.getItemFromBOX();
         boolean stop=false;
@@ -134,23 +135,32 @@ public class CustomerMarket {
             if(sc.next().equals("y")){
                 System.out.println("Insert Lockerbox port number ,address is (127.0.0.1)");
                 portn=sc.nextInt();
-                box = new Customer2Box(agentCustomer,"127.0.0.1",
+                box = new ScammerCustomer2Box(agentCustomer,"127.0.0.1",
                         portn,"anonCustomer");
                 itemFromBoxResult=box.getItemFromBOX();
             }
             else{
                 stop=true;
-                agentCustomer.proverDeleteCredential(itemFromBoxResult);//delete the credential
+                //agentCustomer.proverDeleteCredential(itemFromBoxResult);//delete the credential
                 //identified by the credential id returned by getItemFromBox method
 
             }
         }
-        System.out.println("CUSTOMER METRICS after getting Item:\n"+agentCustomer.collectMetrics());
+        //System.out.println("CUSTOMER METRICS after getting Item:\n"+agentCustomer.collectMetrics());
         System.out.println("SUCESS!! Item "+selectedItem+" collected");
+        System.out.println("Give me the shippingId of the next Delivery");
+        String newShippingId=sc.next();
+        System.out.println("Give me the shippingNonce of the next Delivery");
+        String newShippingnonce =sc.next();
+        box.adjustProofValueToScam(newShippingId,newShippingnonce);
+        box.askForConnectionToBox();
+        System.out.println("result from scam? "+box.stealItemFromBOX());
+
+
     }
 
 
-        private static String itemSelect(List<Object> itemsList, Scanner sc){
+    private static String itemSelect(List<Object> itemsList, Scanner sc){
         int i;
         if (itemsList.size()==0){
             System.out.println("No Items Avaible :(");
@@ -167,16 +177,18 @@ public class CustomerMarket {
         }
         return null;
     }
+
+
 }
-class Customer2Box {
+class ScammerCustomer2Box{
     Agent customerIndy;
     String box2StoreDID;
     InetSocketAddress boxAddress;
     DatagramSocket ds;
     String customerName;
+    ProofCreationExtra proof;
 
-    public Customer2Box(Agent customerIndy, String boxHostname, int boxHostPort,
-                        String customerName) {
+    public ScammerCustomer2Box(Agent customerIndy, String boxHostname, int boxHostPort, String customerName) {
         this.boxAddress = null;
         this.customerIndy = customerIndy;
         boxAddress = new InetSocketAddress(boxHostname, boxHostPort);
@@ -190,12 +202,51 @@ class Customer2Box {
         askForConnectionToBox();
     }
 
-    public Customer2Box() {
-        //empty constructor
+    public void askForConnectionToBox(){
+        try {
+            ds = new DatagramSocket();
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        box2StoreDID = customerIndy.createDID2DIDCommunication(customerName, boxAddress,this.ds);
     }
 
-    public void askForConnectionToBox(){
-        box2StoreDID = customerIndy.createDID2DIDCommunication(customerName, boxAddress,this.ds);
+    public String stealItemFromBOX(){
+        JSONObject messageJOBJECT= new JSONObject();
+        messageJOBJECT.put("request","GetItem0");
+        //sending request for object
+        byte [] msg=customerIndy.writeMessage(messageJOBJECT.toString(),box2StoreDID);
+        sendMSG(msg,this.boxAddress);
+        //receiving proof request
+        String proofRequest = receiveMSG(ds);
+        if(proofRequest.equals("Box is empty")){
+            System.out.println("Box is empty, customer arrived too late to collect item");
+            return "WrongTime";
+        }
+        else{
+            System.out.println("Received proof request "+proofRequest);
+            JSONObject proofreqstructure = new JSONObject(proofRequest);
+            String proofReq= proofreqstructure.getString("proofrequest");
+            //Using adjusted proof to steal item
+            JSONObject sendProof= new JSONObject().put("proof",proof.proofJson).put("request","GetItem1").put("cred_defs",proof.credentialDefs)
+                    .put("schemas",proof.schemas).put("proofrequest",proofReq);
+
+            msg = customerIndy.writeMessage(sendProof.toString(4), box2StoreDID);
+            System.out.println("Message to Send to LockerBox encrypted and with proof additional information"+ msg.length+" bytes");
+            sendMSG(msg,this.boxAddress);
+            String response=receiveMSG(ds);
+            boolean resultcheck = response.equals("Success");
+            if(resultcheck || response.equals("WrongTime")){
+                //if item is received correctly then customer deletes the credential relative to it
+                //(also deletes it if customer arrives late to get the package)
+                System.out.println("Item Stealed ");
+            }
+            else{
+                System.out.println("Wrong Box for the given credential");
+                response=null;
+            }
+            return response;
+        }
     }
     public String getItemFromBOX(){
         JSONObject messageJOBJECT= new JSONObject();
@@ -210,23 +261,22 @@ class Customer2Box {
             return "WrongTime";
         }
         else{
+            System.out.println("Received proof request "+proofRequest);
             JSONObject proofreqstructure = new JSONObject(proofRequest);
-            String proofReq = proofreqstructure.getString("proofrequest");
-            ArrayList<String> requested_revealed = new ArrayList<String>(Arrays.asList(proofreqstructure.
+            String proofReq= proofreqstructure.getString("proofrequest");
+            ArrayList<String> requested_attributes=new ArrayList<String>(Arrays.asList(proofreqstructure.
                     getJSONArray("requested_revealed_attributes").toList().
                     toArray(String[]::new)));
-            ProofAttributesFetched attributesFetched =
+            ProofAttributesFetched attributesFetched=
                     customerIndy.
                             returnProverSearchAttrForProof
-                                    (proofReq, requested_revealed);
-
-            ProofCreationExtra proof = customerIndy.proverCreateProof(attributesFetched, proofReq,null
-                    , null, -1);
-
-
+                                    (proofReq,  requested_attributes);
             System.out.println("client credential fetch for proof metrics:\n"+customerIndy.collectMetrics());
 
             //String selfAttestedOpeningTime= String.valueOf(System.currentTimeMillis());
+            proof=customerIndy.proverCreateProof(attributesFetched,proofReq, null
+                    ,null,-1);
+
             System.out.println("Customer! Created Proof Size in Bytes-> "+proof.proofJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
 
             //ProofCreationExtra proof= customerIndy.returnProverSearchAttrAndCreateProofSimple(proofReq,null,currentTimeofproof);
@@ -243,7 +293,7 @@ class Customer2Box {
             if(resultcheck || response.equals("WrongTime")){
                 //if item is received correctly then customer deletes the credential relative to it
                 //(also deletes it if customer arrives late to get the package)
-                customerIndy.proverDeleteCredential(attributesFetched.credentialID.get(0));
+                System.out.println("Item received correctly, i'll keep the credential, just in case...");
             }
             else{
                 System.out.println("Wrong Box for the given credential");
@@ -251,6 +301,39 @@ class Customer2Box {
             }
             return response;
         }
+    }
+
+    public boolean adjustProofValueToScam(String shippingId,String shippingNonce){
+        System.out.println(
+                proof.proofJson);
+        JSONObject changeProof = new JSONObject(proof.proofJson);
+        System.out.println("changeproof"+ changeProof.toString(4));
+        JSONObject modifyfields = changeProof.getJSONObject("requested_proof");
+
+        System.out.println("beforechanges\n"+modifyfields.toString(4));
+
+        modifyfields.put("revealed_attr_groups",new JSONObject().put("attr0_referent",(new JSONObject().put("values",new JSONObject().
+                        put("shippingid",new JSONObject().put("raw",shippingId).put("encoded",shippingId)).
+                        put("shippingnonce",new JSONObject().put("raw",shippingNonce).put("encoded",shippingNonce))
+                        )).put("sub_proof_index",0)));
+        System.out.println("afterchanges\n"+modifyfields.toString(4));
+        changeProof.put("requested_proof",modifyfields);
+        System.out.println("fullNEWPROOF\n"+changeProof.toString(4));
+
+        JSONArray modifyfieldsArray = changeProof.getJSONObject("proof").getJSONArray("proofs");
+        JSONObject modifyFields2 = modifyfieldsArray.getJSONObject(0);
+        modifyfields = modifyFields2.getJSONObject("primary_proof");
+        JSONObject modifyfields3= modifyfields.getJSONObject("eq_proof");
+        modifyfields3.put("revealed_attrs",new JSONObject().
+                put("shippingid",shippingId).
+                put("shippingnonce",shippingNonce));
+        modifyfields.put("eq_proof",modifyfields3);
+        modifyFields2.put("primary_proof",modifyfields);
+        modifyfieldsArray.put(0,modifyFields2);
+        changeProof = changeProof.put("proof",changeProof.getJSONObject("proof").put("proofs",modifyfieldsArray));
+        System.out.println("change"+changeProof.toString(4));
+        this.proof.proofJson=changeProof.toString(4);
+        return true;
     }
     private void sendMSG(String msg,InetSocketAddress theirAddress) {
         byte[] toSend = msg.getBytes();
@@ -325,5 +408,7 @@ class Customer2Box {
         message = customerIndy.readMessage(dataArray);
         return message;
     }
+
 }
+
 

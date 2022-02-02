@@ -26,18 +26,48 @@ public class Store {
     private ConcurrentHashMap<String,Item> ItemsCollection;//ItemName->Item
 
 
-    private Endorser StoreIndy;
-    private Integer shippingid;
+    protected Endorser StoreIndy;
+    protected Integer shippingid;
     private Pool pool;
-    private CredDefStructure shippingCredential;
-    private SchemaStructure shippingSchema;
-    private ConcurrentHashMap<String,String> sendingItemTo;
-    private ArrayList <Store2Box> boxes ;
-    private ArrayList <Store2ShippingAgent> shippingAgents;
-    private CredDefStructure shipmentCredential;
+    protected CredDefStructure shippingCredential;
+    protected SchemaStructure shippingSchema;
+    protected ConcurrentHashMap<String,String> sendingItemTo;
+    protected ArrayList <Store2Box> boxes ;
+    protected ArrayList <Store2ShippingAgent> shippingAgents;
+    protected CredDefStructure shipmentCredential;
     private SchemaStructure shipmentSchema;
-    private Integer shipmentid;
+    protected Integer shipmentid;
 
+    public Store(Pool handle, String StoreDIDseed, String StoreName,String storeWallet,String walletPassword){
+        //creating the store, using a pool provided by the creator, allows to connect to an already
+        // allows to connect to a pool different than Indyscan pool.
+        //Predefined DID seed, allows to connect to Sovrin Buildernet with an Endorser DID
+        // (https://selfserve.sovrin.org/)
+        boxes = new ArrayList<>();
+        shippingAgents = new ArrayList<>();
+        try {
+            this.pool = handle;
+            this.storeName=StoreName;
+            this.shippingid = 1;
+            this.shipmentid= new Random().nextInt(1000);
+            JSONUserCredentialStorage jsonStoredCred=null;
+            File agentsFile=new File("./"+"agentsFile"+".json");
+            sendingItemTo  = new ConcurrentHashMap<>();
+            jsonStoredCred= new JSONUserCredentialStorage(agentsFile);
+            StoreIndy = new Endorser(pool,storeName,jsonStoredCred);
+            StoreIndy.CreateWallet("storeWallet"+this.storeName,walletPassword);
+            StoreIndy.OpenWallet("storeWallet"+this.storeName,walletPassword);
+            StoreIndy.createDID(StoreDIDseed);
+            ItemsCollection = new ConcurrentHashMap<>();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
     public Store(String poolName,String storeName,String walletPassword){
         //creating the store, making public in the Ledger his DID and starting initializing his
         //endpoint for starting DID2DID comm
@@ -111,7 +141,7 @@ public class Store {
             ItemsCollection = new ConcurrentHashMap<>();
             jsonStoredCred= new JSONUserCredentialStorage(agentsFile);
             StoreIndy = new Endorser(pool,storeName,jsonStoredCred);
-            StoreIndy.OpenWallet("storeWallet1"+this.storeName,walletPassword);
+            StoreIndy.OpenWallet("storeWallet"+this.storeName,walletPassword);
             StoreIndy.getStoredDIDandVerkey(didValue);
             System.out.println("insert Box Address HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
             Scanner scanner= new Scanner(System.in);
@@ -169,6 +199,48 @@ public class Store {
         return this.shipmentCredential;
     }
 
+    public SchemaStructure createPackageCredentialSchemaAndPublishOnSovrin(String schemaName,
+                                                                   String schemaVersion,
+                                                                   String[]schemaAttribs,String taaDigest,
+                                                                           String taaAcceptanceMechanism,
+                                                                           Long acceptanceTimestamp
+    ){
+        this.shippingSchema = this.StoreIndy.publishschemaOnSovrin(schemaName,
+                schemaVersion,schemaAttribs,taaDigest,taaAcceptanceMechanism,acceptanceTimestamp);
+        return this.shippingSchema;
+    }
+
+    public CredDefStructure createPackageCredentialDefinitionAndPublishOnSovrin(String credDefTag, boolean supportRevocation,
+                                                                        String schemaID, String taaDigest,
+                                                                                String taaAcceptanceMechanism,
+                                                                                Long acceptanceTimestamp){
+        this.shippingCredential =
+                this.StoreIndy.IssuerCreateStoreAndPublishCredDefOnSovrin(credDefTag,supportRevocation,schemaID,taaDigest,
+                        taaAcceptanceMechanism,acceptanceTimestamp);
+        return this.shippingCredential;
+    }
+    public SchemaStructure createShippingCredentialSchemaAndPublishOnSovrin(String schemaName,
+                                                                    String schemaVersion,
+                                                                    String[]schemaAttribs,String taaDigest,
+                                                                            String taaAcceptanceMechanism,
+                                                                            Long acceptanceTimestamp)
+    {
+
+        this.shipmentSchema = this.StoreIndy.publishschemaOnSovrin(schemaName,
+                schemaVersion,schemaAttribs,taaDigest,taaAcceptanceMechanism,acceptanceTimestamp);
+        return this.shipmentSchema;
+    }
+
+    public CredDefStructure createShippingCredentialDefinitionAndPublishOnSovrin(String credDefTag, boolean supportRevocation,
+                                                                                 String schemaID, String taaDigest,
+                                                                                 String taaAcceptanceMechanism,
+                                                                                 Long acceptanceTimestamp){
+        this.shipmentCredential =
+                this.StoreIndy.IssuerCreateStoreAndPublishCredDefOnSovrin(credDefTag,supportRevocation,schemaID,taaDigest,
+                        taaAcceptanceMechanism,acceptanceTimestamp);
+        return this.shipmentCredential;
+    }
+
     public void openStoreToClients(){
         try {
             AgentListenChannel =ServerSocketChannel.open();
@@ -195,6 +267,32 @@ public class Store {
         //return the message of connection accepted with own DID2DID  communication information
         String acceptedconn=StoreIndy.acceptConnection(receivedMSG,this.storeName);
         return acceptedconn;
+    }
+
+    public void openStoreToClientsOnSovrin(String taaDigest,
+                                           String taaAcceptanceMechanism,
+                                           Long acceptanceTimestamp) {
+        try {
+            AgentListenChannel =ServerSocketChannel.open();
+            AgentListenChannel.socket().bind(null);
+            listeningAddress = (InetSocketAddress) AgentListenChannel.getLocalAddress();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println("IndyStore Listening Address:" + listeningAddress);
+        //add entpoint to NYM Object in Ledger to talk with Endorser
+        //inserting address 127.0.0.1 for localhost
+
+        StoreIndy.addENdpointToNYMOnSovrin("did2did","127.0.0.1:"+listeningAddress.getPort(),taaDigest,
+                taaAcceptanceMechanism,acceptanceTimestamp);
+        System.out.println("Store aperto, ricerca mediante DID: "+ StoreIndy.mainDID.didName);
+        System.out.println("Store is open, search with DID: "+ StoreIndy.mainDID.didName);
+
+        Thread th = new Thread(new StoreRequestsHandler(this.pool,AgentListenChannel,this));
+        //starting StoreRequestHandler in the Store MainThread.
+        th.start();
+
     }
 
     public class marketPlaceStoreTaskHandler implements Runnable{
@@ -266,7 +364,7 @@ public class Store {
 
     }
     //
-    private String HandleRequest(byte[] request,String requester) {
+    protected String HandleRequest(byte[] request,String requester) {
         System.out.println("in handle request");
         String regexNospace = "([a-zA-Z0-9.~!$%^&*_=+_%\\[\\]()\"{}\\\\:;,^?-]+)"; // match only symbols
         String unpacked_request = StoreIndy.readMessage(request);
@@ -385,12 +483,13 @@ public class Store {
                     }
                     if(!bookedBox){
                         while (!bookedBox){
-                            System.out.println("Box was full,type Exit to abort operation");
+                            System.out.println("Box was full,type 1 to abort operation");
 
-                            ip=scanner.next();
-                            if (ip.equals("Exit")){
+                            ip= String.valueOf(scanner.nextInt());
+                            if (ip.equals("1")){
                                 return "Failure all known boxes are full";
                             }
+
                             System.out.println("insert Box Address HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
                             //ip=scanner.next();
                             ip="127.0.0.1";
@@ -408,7 +507,7 @@ public class Store {
                 Store2ShippingAgent store2shippingAgent;
                 //request shipping to ShipperAgent
                 if(shippingAgents.isEmpty()){
-                    System.out.println("insert ShippingAgent HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
+                    System.out.println("insert ShippingDeliverer HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
                     //ip=scanner.next();
                     ip="127.0.0.1";
                     port=scanner.nextInt();
@@ -425,7 +524,7 @@ public class Store {
                         store2shippingAgent=shippingAgents.get(i);
                     }
                     else{
-                        System.out.println("insert ShippingAgent HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
+                        System.out.println("insert ShippingDeliverer HostIP to send Item,HostIP is 127.0.0.1, INSERT PortNo");
                         //ip=scanner.next();
                         ip="127.0.0.1";
                         port=scanner.nextInt();
@@ -657,7 +756,7 @@ public class Store {
         }
     }
 
-    private class Store2Box{
+    protected class Store2Box{
         public String boxID;
         Endorser StoreIndy;
         String box2StoreDID;
@@ -748,7 +847,7 @@ public class Store {
         }
 
     }
-    private class Store2ShippingAgent{
+    protected class Store2ShippingAgent{
         public String shippingAgentID;
         Endorser StoreIndy;
         String ShippingAgent2StoreDID;
@@ -778,17 +877,17 @@ public class Store {
             messageJOBJECT.put("request","GetShippingAgentID");
             byte [] msg=StoreIndy.writeMessage(messageJOBJECT.toString(),this.ShippingAgent2StoreDID);
             sendMSG(msg,this.boxAddress);
-            //ShippingAgent sends his ID to Store
+            //ShippingDeliverer sends his ID to Store
             this.shippingAgentID =receiveMSG(ds);
         }
 
-        public boolean giveShipmentToAgent(String[] attrValues, String boxAddress, int boxPort){
+        protected boolean giveShipmentToAgent(String[] attrValues, String boxAddress, int boxPort){
             JSONObject messageJOBJECT= new JSONObject();
             messageJOBJECT.put("request","HandleDelivery0");
             CredOfferStructure credOffer= StoreIndy.returnCredentialOffer(
                     shipmentCredential.credDefId);
 
-            System.out.println("Store CredentialOffer to ShippingAgent size in bytes"+ credOffer.credOffer.getBytes(StandardCharsets.UTF_8).length+" bytes");
+            System.out.println("Store CredentialOffer to ShippingDeliverer size in bytes"+ credOffer.credOffer.getBytes(StandardCharsets.UTF_8).length+" bytes");
             JSONObject offerJSONObj= new JSONObject();
             offerJSONObj.put("credDefId",credOffer.credDef.credDefId);
             offerJSONObj.put("credDef",credOffer.credDef.credDefJson);
@@ -818,8 +917,8 @@ public class Store {
                  msg=StoreIndy.writeMessage(tosend,ShippingAgent2StoreDID);
                  sendMSG(msg,this.boxAddress);
 
-                System.out.println("Store Credential created for ShippingAgent size in bytes"+ ret.credentialJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
-                System.out.println("Store CredentialMSG  ShippingAgent size in bytes"+ msg.length+" bytes");
+                System.out.println("Store Credential created for ShippingDeliverer size in bytes"+ ret.credentialJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
+                System.out.println("Store CredentialMSG  ShippingDeliverer size in bytes"+ msg.length+" bytes");
 
                 return true;
             }
@@ -866,6 +965,49 @@ public class Store {
             return message;
 
 
+        }
+        protected boolean giveShipmentToAgent(String[] attrValues, String boxAddress, int boxPort,String deliveryMessage){
+            JSONObject messageJOBJECT= new JSONObject();
+            messageJOBJECT.put("request","HandleDelivery0");
+            CredOfferStructure credOffer= StoreIndy.returnCredentialOffer(
+                    shipmentCredential.credDefId);
+
+            System.out.println("Store CredentialOffer to ShippingDeliverer size in bytes"+ credOffer.credOffer.getBytes(StandardCharsets.UTF_8).length+" bytes");
+            JSONObject offerJSONObj= new JSONObject();
+            offerJSONObj.put("credDefId",credOffer.credDef.credDefId);
+            offerJSONObj.put("credDef",credOffer.credDef.credDefJson);
+            offerJSONObj.put("credOffer",credOffer.credOffer);
+            offerJSONObj.put("requesterDID",ShippingAgent2StoreDID);
+            offerJSONObj.put("revReg",credOffer.revRegId);
+            messageJOBJECT.put("itemCredentialOffer",offerJSONObj.toString(4));
+            byte [] msg=StoreIndy.writeMessage(messageJOBJECT.toString(),ShippingAgent2StoreDID);
+            sendMSG(msg,this.boxAddress);
+            String identifer= receiveMSG(ds);
+            JSONObject credReqOBJ;
+
+            if(!identifer.equals("Error")){
+                credReqOBJ= new JSONObject(identifer);
+                this.deliveryId = credReqOBJ.getLong("deliveryId");
+            }
+            String credfRequest= receiveMSG(ds);
+            if(!credfRequest.equals("Error")){
+                credReqOBJ = new JSONObject(credfRequest);
+                String credReq= credReqOBJ.getString("credReq");
+                String fromRequesterOffer = credReqOBJ.getString("credOffer");
+                CreateCredentialResult ret = this.StoreIndy.returnIssuerCreateCredentialNonRevocable(
+                        shipmentSchema.schemaAttrs, attrValues,fromRequesterOffer,
+                        credReq);
+                String tosend=new JSONObject().put("Credential",ret.credentialJson).put("request","HandleDelivery1").put("LockerBoxAgentIP",boxAddress).
+                        put("LockerBoxAgentPortNo",boxPort).put("deliveryId",this.deliveryId).put("message",deliveryMessage).toString();
+                msg=StoreIndy.writeMessage(tosend,ShippingAgent2StoreDID);
+                sendMSG(msg,this.boxAddress);
+
+                System.out.println("Store Credential created for ShippingDeliverer size in bytes"+ ret.credentialJson.getBytes(StandardCharsets.UTF_8).length+" bytes");
+                System.out.println("Store CredentialMSG  ShippingDeliverer size in bytes"+ msg.length+" bytes");
+
+                return true;
+            }
+            return false;
         }
 
     }

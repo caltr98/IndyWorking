@@ -30,7 +30,11 @@ public class StewardAgent extends Endorser {
             nymRequest = Ledger.buildNymRequest(mainDID.didName,
                     newEndorserDid.didName, newEndorserDid.didVerKey, null, endorserMeaning).get();
             System.out.println(new JSONObject(nymRequest).toString(4));
+            pre = System.currentTimeMillis();
             nymResponseJson = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, nymRequest).get();
+            post = System.currentTimeMillis();
+            System.out.println("NymRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             //System.out.println(nymResponseJson);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -53,7 +57,11 @@ public class StewardAgent extends Endorser {
         try {
             attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
                     , null, raw,null).get();
+            pre=System.currentTimeMillis();
             attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
+            post = System.currentTimeMillis();
+            System.out.println("AttribRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             System.out.println("addAttribute Response : "+ attribResponse);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -74,7 +82,10 @@ public class StewardAgent extends Endorser {
             //validator info request must can be sent to specific node
             String SignedvalidatorInfoReq=signRequest(this.mainWallet,this.mainDID.didName,validatorInfoReq).get();
             //submitAction(Pool pool,String requestJson,String nodes,int timeout)
+            pre = System.currentTimeMillis();
             String requestResult=submitAction(this.poolConnection,SignedvalidatorInfoReq,null,-1).get();
+            post = System.currentTimeMillis();
+            System.out.println("GetValidator Info pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
             System.out.println(requestResult);
             JSONObject result = new JSONObject(requestResult);
             System.out.println("node 1 info" +new JSONObject(result.getString("Node1")).toString(4));

@@ -118,6 +118,32 @@ public class LockerBoxAgent implements Runnable {
 
     }
 
+    public LockerBoxAgent(Pool pool, String boxname) {
+        //box setup with a given pool handle!
+        //can be used to connect to sovrin!
+        this.boxName=boxname;
+        this.stop=false;
+        this.isReserved =false;
+        this.isOccupied = false;
+        this.timestampreturnitem=Long.MAX_VALUE;
+        this.timestampcanopen= Long.MIN_VALUE;
+        this.addresstodid=new HashMap<>();
+        this.currentTalker =null;
+        this.pool=pool;
+        this.boxName=boxname;
+        JSONUserCredentialStorage jsonStoredCred=null;
+        File agentsFile=new File("./"+"agentsFile"+".json");
+        try {
+            jsonStoredCred = new JSONUserCredentialStorage(agentsFile);
+        } catch (NoSuchPaddingException | NoSuchAlgorithmException | IOException e) {
+            e.printStackTrace();
+        }
+        IndyLockerBox= new Endorser(pool,boxName,jsonStoredCred);
+        IndyLockerBox.CreateWallet("boxWallet"+boxname,"abcd");
+        IndyLockerBox.OpenWallet("boxWallet"+boxname,"abcd");
+        IndyLockerBox.createDID();
+    }
+
     private void occupyBOX(String shippingcreddefid, String shippingId,String shippingNonce,
                            String shipmentcreddefid, String shipmentId,String shipmentNonce,String storedid){
         this.shippingcreddefid =shippingcreddefid;
@@ -229,7 +255,8 @@ public class LockerBoxAgent implements Runnable {
                 return "failure";
             }
             boolean verifyRes=
-                    IndyLockerBox.returnVerifierVerifyProofNOREVOCATION(this.lastProofRequestToShippingAgent,proofReceived,schemasReceived,creddefsReceived);
+                    IndyLockerBox.returnVerifierVerifyProofNOREVOCATION(this.lastProofRequestToShippingAgent,proofReceived,
+                            schemasReceived,creddefsReceived);
             System.out.println("Is credential Valid?:"+verifyRes+"\n");
 
             if(verifyRes) {
@@ -453,16 +480,19 @@ public class LockerBoxAgent implements Runnable {
         // "attr::attr_name::value": "requested_value", attribute dont need to be in a revealed form to
         // check for equality ( it protects the customer so that if he sends a wrong credential
         // the lockerbox will not know he has the credential for another item shipping )
+        System.out.println("shippingId" + this.shippingId + "shipping nonce "+shippingNonce );
         arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest(null,
                 new String[]{"shippingnonce","shippingid"},
                 null,null,null,null,
-                this.storedid,this.shippingcreddefid,new String[]{"shippingnonce","shippingid"
-                },
-                new String []{this.boxName,this.shippingNonce,this.shippingId},null,currenttime,currenttime);
+                this.storedid,this.shippingcreddefid,new String[]{"shippingnonce","shippingid"},
+                new String[]{this.shippingNonce,this.shippingId},null,currenttime,currenttime);
+
+
         System.out.println("attrinfo - request - structure\n"+arrayofAttrreq[0].toString(4));
         String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
                 ,"1.0","1.0",
                 arrayofAttrreq,null,currenttime,currenttime);
+
         System.out.println("proof - request - Body\n"+proofReqbody);
         System.out.println("LockerBox to Customer proof request size"+ proofReqbody.length());
         return proofReqbody;
@@ -479,6 +509,7 @@ public class LockerBoxAgent implements Runnable {
         //NOTE: the attribute shippingid,lockerboxid,shippingnoce attributes must be  equals to those
         // of the current idem,equality will be checked with restrition :
         // "attr::attr_name::value": "requested_value", attribute dont need to be in a revealed form to
+
         arrayofAttrreq[0] = IndyLockerBox.generateAttrInfoForProofRequest(null,
                 new String[]{"shipmentavailabilitytime","shipmentnonce","shipmentid"},
                 null,null,null,null,
@@ -489,7 +520,7 @@ public class LockerBoxAgent implements Runnable {
         String proofReqbody= IndyLockerBox.returnVerifierGenerateProofRequest("GetItemProof"+String.valueOf(System.currentTimeMillis())
                 ,"1.0","1.0",
                 arrayofAttrreq,null,currenttime,currenttime);
-        System.out.println("LockerBox to ShippingAgent proof request size"+ proofReqbody.length());
+        System.out.println("Shipment agent attrinfo - request - structure\n"+arrayofAttrreq[0].toString(4));
         return proofReqbody;
     }
 

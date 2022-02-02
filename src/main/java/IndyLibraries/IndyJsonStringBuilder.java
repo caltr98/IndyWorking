@@ -152,8 +152,23 @@ public class IndyJsonStringBuilder {
                         toInsert);
             }
             jsonObject.put("requested_attributes",jsonObject2);
+        }        if(requestedAttributeCredId!=null && requestedAttributeRefent!=null
+        &&requestedAttributeRevevaledOrNot !=null) {
+            //System.out.println(requestedAttributeRefent.length + " "+requestedAttributeCredId.length + " "+ requestedAttributeRevevaledOrNot.length);
+            //System.out.println((requestedAttributeRefent.length-1)+" "+ requestedAttributeRefent[requestedAttributeRefent.length-1]);
+            for (i = 0; i < requestedAttributeRefent.length; i++) {
+                //System.out.println("index i: "+ i + " " +requestedAttributeRefent.length + " "+requestedAttributeCredId.length + " "+ requestedAttributeRevevaledOrNot.length);
+                JSONObject toInsert= new JSONObject().put("cred_id", requestedAttributeCredId[i]).put("revealed",
+                        (Boolean) requestedAttributeRevevaledOrNot.getOrDefault(requestedAttributeRefent[i],false));
+                if(time!=null){
+                    toInsert.put("timestamp",time);
+                }
+                jsonObject2.put(requestedAttributeRefent[i],
+                        toInsert);
+            }
+            jsonObject.put("requested_attributes",jsonObject2);
         }
-        else jsonObject.put("requested_attributes",new JSONObject());
+
 
 
         if(requestedPredicatesCredId!=null && requestedPredicatesRefent!=null){
@@ -172,6 +187,8 @@ public class IndyJsonStringBuilder {
         }
         else
             jsonObject.put("requested_predicates",new JSONObject());
+
+        System.out.println("prooof body \n \n "+jsonObject.toString(4)+"\n\n\n\n");
         return jsonObject.toString(4);
     }
 
@@ -370,7 +387,7 @@ public class IndyJsonStringBuilder {
             jsonObject.put("restrictions",jsonRestrictionsCollection);
         }
         if(NonRevokedFROM != null){
-                jsonObject2.put("from",NonRevokedFROM);
+            jsonObject2.put("from",NonRevokedFROM);
 
         }
         if(NonRevokedUNTIL !=null){

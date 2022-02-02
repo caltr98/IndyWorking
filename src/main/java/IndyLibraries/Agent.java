@@ -237,6 +237,9 @@ public class Agent {
         JSONObject retrievedDID = null;
         try {
              retrievedDID = new JSONObject (Did.getDidWithMeta(mainWallet,didValue).get());
+             if(this.mainDID==null){
+                 addDIDToCollectionSetMainDid(retrievedDID.getString("did"), retrievedDID.getString("verkey"));
+             }
             this.agentsFile.insertAgentDID(this.agentName, retrievedDID.getString("did"));
             this.agentsFile.insertAgentVerKey(this.agentName, retrievedDID.getString("verkey"));
             this.agentsFile.makeBackup();
@@ -259,9 +262,14 @@ public class Agent {
     //get SchemaJson from ledger and add the IndyLibraries.SchemaStructure to the IndyLibraries.Agent Collection
     public String getNYMFromLedger(String destDID) {
         String responseNym = null;
+        long pre,post;
+        String s;
         try {
             String getNymRequest = Ledger.buildGetNymRequest(this.mainDID.didName, destDID).get();
-            String s = Ledger.submitRequest(this.poolConnection, getNymRequest).get();
+            pre=System.currentTimeMillis();
+            s = Ledger.submitRequest(this.poolConnection, getNymRequest).get();
+            post=System.currentTimeMillis();
+            System.out.println("nym request from ledger + pre:"+pre+" post:"+post + " delta: "+(post-pre));
             responseNym = parseGetNymResponse(s).get();
             return new JSONObject(s).getJSONObject("result").toString(4);
         } catch (InterruptedException e) {
@@ -278,13 +286,20 @@ public class Agent {
 
     //get SchemaJson from ledger and add the IndyLibraries.SchemaStructure to the IndyLibraries.Agent Collection
     public String getATTRIBFromLedger(String destDID, String optRaw, String optHash, String optencryptedval) {
+        long pre,post;
+
         if(optRaw == null && optencryptedval == null && optHash== null)
             return null;
         try {
             //buildGetAttribRequest( String submitterDid, String targetDid, String raw, String hash, String enc )
             String getAttribRequest = Ledger.buildGetAttribRequest(this.mainDID.didName, destDID,
                     optRaw, optHash, optencryptedval).get();
+            pre = System.currentTimeMillis();
+
             String s = Ledger.submitRequest(this.poolConnection, getAttribRequest).get();
+            post= System.currentTimeMillis();
+            System.out.println("GETATTRIB pre:"+ pre + " post: " +post+ " delta: "+ (post-pre) );
+
             return new JSONObject(s).toString(4);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -300,11 +315,15 @@ public class Agent {
 
     public String getATTRIBFromLedger(String theirDID,String justRaw) {
         String responseNym = null;
+        long pre,post;
         try {
 
             String getAttribRequest = Ledger.buildGetAttribRequest(this.mainDID.didName, theirDID,
                     justRaw, null, null).get();
+            pre = System.currentTimeMillis();
             String s = Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName, getAttribRequest).get();
+            post= System.currentTimeMillis();
+            System.out.println("GETATTRIB pre:"+ pre + " post: " +post+ " delta: "+ (post-pre) );
             return new JSONObject(s).toString(4);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -323,13 +342,19 @@ public class Agent {
     public String getSchemaFromLedger(String SchemaID) {
         String schemaIDOnLedger;
         String schemaJson;
+        Long preRequest,postRequest;
+        String s;
         //necessario parsare lo schema ottenuto in uno frienldy con AnonCreds API e issuer credential
         LedgerResults.ParseResponseResult responseScheme = null;
         try {
             //System.out.println("id schema che cerco sul ledger"+SchemaID);
             String getSchemaRequest = Ledger.buildGetSchemaRequest(this.mainDID.didName,
                     SchemaID).get();
-            String s = Ledger.submitRequest(this.poolConnection, getSchemaRequest).get();
+            preRequest=System.currentTimeMillis();
+            s = Ledger.submitRequest(this.poolConnection, getSchemaRequest).get();
+            postRequest = System.currentTimeMillis();
+            System.out.println("Get Schema from ledger, prerequest: "+ preRequest + "postrequest : "+
+                    postRequest+ "delta: " + (postRequest-preRequest));
             responseScheme = parseGetSchemaResponse(s).get();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -359,14 +384,21 @@ public class Agent {
     public String getCredentialDefinitionFromLedger(String credDefID) {
         String credDefIdOnLedger;
         String credDefJson;
-        //necessario parsare lo schema ottenuto in uno frienldy con AnonCreds API e issuer credential
+        Long preRequest,postRequest;
+        String s;
+        System.out.println(credDefID);
         LedgerResults.ParseResponseResult responseCredDef = null;
         try {
             //System.out.println("id schema che cerco sul ledger"+SchemaID);
-            String getCredDefRequest = Ledger.buildGetCredDefRequest(this.mainDID.didName,
-                    credDefID).get();
-            String s = Ledger.submitRequest(this.poolConnection, getCredDefRequest).get();
-            responseCredDef = parseGetSchemaResponse(s).get();
+            String request = buildGetCredDefRequest(this.mainDID.didName, credDefID).get();
+            preRequest=System.currentTimeMillis();
+            String result =submitRequest(poolConnection, request).get();
+            postRequest = System.currentTimeMillis();
+            System.out.println("Get CredentialDefinition from ledger, prerequest: "+ preRequest + "postrequest : "+
+                    postRequest+ "delta: " + (postRequest-preRequest));
+            System.out.println("result:\n"+result);
+            responseCredDef = parseGetCredDefResponse(result).get();
+
         } catch (InterruptedException e) {
             e.printStackTrace();
             return null;
@@ -380,7 +412,6 @@ public class Agent {
         if (responseCredDef != null) {
             credDefJson = responseCredDef.getObjectJson();
             credDefIdOnLedger = responseCredDef.getId();
-            JSONArray jsonArray = new JSONObject(credDefJson).getJSONArray("attrNames");
             this.CredDefsCollection.put(credDefIdOnLedger, new CredDefStructure(credDefID.toString(), credDefJson.toString()));
             return credDefJson.toString();
         }
@@ -430,15 +461,23 @@ public class Agent {
     //inside the credential request prover will put his master secret key in it, the master secret will make the credential
     //belong to the prover, any other Agent with the credential and without the master secret will not be able to create a
     //valid proof with it.
+    long pre,post;
     public CredRequestStructure returnproverCreateCredentialRequest(CredOfferStructure credOffer) {
         AnoncredsResults.ProverCreateCredentialRequestResult createCredReqResult =
                 null;
+        String ris;
         String credReqJson, credReqMetadataJson;
         if (credOffer.credDef.credDefJson == null) {
             //credDef json is needed
             try {
+                System.out.println("Id credenziale della offer"+credOffer.credDef.credDefId);
                 String req = buildGetCredDefRequest(this.mainDID.didName, credOffer.credDef.credDefId).get();
-                String objJson = parseGetCredDefResponse(submitRequest(poolConnection, req).get()).get().getObjectJson();
+                pre=System.currentTimeMillis();
+                ris=submitRequest(poolConnection, req).get();
+                post=System.currentTimeMillis();
+                System.out.println("CREDDEFREQUEST + pre: "+ pre + "post: "+post + " delta: "+(post-pre));
+                String objJson = parseGetCredDefResponse(ris).get().getObjectJson();
+
                 credOffer.credDef.credDefJson = objJson;
             } catch (IndyException e) {
                 e.printStackTrace();
@@ -474,12 +513,20 @@ public class Agent {
     public CredRequestStructure returnproverCreateCredentialRequest(CredOfferStructure credOffer,String myDID2DID) {
         AnoncredsResults.ProverCreateCredentialRequestResult createCredReqResult =
                 null;
+        long preRequest,postrequest;
+        String req;
         String credReqJson, credReqMetadataJson;
         if (credOffer.credDef.credDefJson == null) {
             //credDef json is needed
             try {
-                String req = buildGetCredDefRequest(myDID2DID, credOffer.credDef.credDefId).get();
-                String objJson = parseGetCredDefResponse(submitRequest(poolConnection, req).get()).get().getObjectJson();
+                System.out.println("Id credenziale della offer"+credOffer.credDef.credDefId);
+                req = buildGetCredDefRequest(myDID2DID, credOffer.credDef.credDefId).get();
+                preRequest=System.currentTimeMillis();
+                req=submitRequest(poolConnection, req).get();
+                postrequest = System.currentTimeMillis();
+                System.out.println("GET CREDENTIAL REQUEST prerequest"+ preRequest + "post request: " +
+                        postrequest +" delta_:" + (postrequest-preRequest));
+                String objJson = parseGetCredDefResponse(req).get().getObjectJson();
                 credOffer.credDef.credDefJson = objJson;
             } catch (IndyException e) {
                 e.printStackTrace();
@@ -604,6 +651,7 @@ public class Agent {
                 //System.out.println("schemaIDReqested "+schemaId +"\n ");
                 jsonObject.put(schemaId, new JSONObject(getSchemaFromLedger(schemaId))).toString(4);
             }
+            long pre,post;
             schemas = jsonObject.toString(4);
             jsonObject = new JSONObject();
             String credentialDefs;
@@ -613,7 +661,10 @@ public class Agent {
                 //System.out.println("credDefIdRqeuqested "+credDefId+"\n  w");
 
                 String req = Ledger.buildGetCredDefRequest(this.mainDID.didName, credDefId).get();
+                pre=System.currentTimeMillis();
                 String ris = Ledger.submitRequest(this.poolConnection, req).get();
+                post=System.currentTimeMillis();
+                System.out.println("CredDef + pre:"+pre + "post:"+post+" delta: "+(post-pre));
                 LedgerResults.ParseResponseResult responseResult =
                         Ledger.parseGetCredDefResponse(ris).get();
                 jsonObject.put(credDefId, new JSONObject(responseResult.getObjectJson())).toString(4);
@@ -734,6 +785,12 @@ public class Agent {
             if(revocRegDefs == null){
                 revocRegDefs=new JSONObject("{}").toString();
             }
+            System.out.println("proof request"+proofRequestJson);
+            System.out.println("proof:"+proofJson);
+            System.out.println("proof schemas"+schemas);
+            System.out.println("proof credDef"+credentialDefs);
+            System.out.println("proof revocregdefs"+revocRegDefs);
+            System.out.println("proof revocregs"+revocRegs);
 
             valid = Anoncreds.verifierVerifyProof(proofRequestJson, proofJson, schemas, credentialDefs,
                     revocRegDefs,
@@ -772,9 +829,16 @@ public class Agent {
                                                              String cred_def_id,
                                                              String[] attr_for_value_restrictions, String[] value_restriction_for_attrs, String rev_reg_id,
                                                              Long NonRevokedFROM, Long NonRevokedUNTIL) {
-        return IndyJsonStringBuilder.generateAttrInfoForProofRequest(name, names, schema_id, schema_issuer_did,
+
+
+        System.out.println("NOTE: Using the names attributes and presenting them NON REVEALED" +
+                        "CAUSES AN EXCEPTION");
+        JSONObject toret =  IndyJsonStringBuilder.generateAttrInfoForProofRequest(name, names, schema_id, schema_issuer_did,
                 schema_name, schema_version,
-                issuer_credential_did, cred_def_id, attr_for_value_restrictions,value_restriction_for_attrs,rev_reg_id, NonRevokedFROM, NonRevokedUNTIL);
+                issuer_credential_did, cred_def_id, attr_for_value_restrictions,value_restriction_for_attrs,rev_reg_id,
+                NonRevokedFROM, NonRevokedUNTIL);
+        System.out.println("wtfAGIN"+toret);
+        return toret;
     }
 
     public String returnVerifierGenerateProofRequest(String proofReqName, String proofReqVersion, String ver,
@@ -798,6 +862,9 @@ public class Agent {
     }
 
     public ProofAttributesFetched returnProverSearchAttrForProof(String proofRequestJson,ArrayList<String> requestedRevealed) {
+        System.out.println("NOTE: If in the proof request the requested attributes" +
+                "where in the names:\"\" field, it is advised to put them in a " +
+                "revealed form or an Exception will be thrown");
         JSONArray jsonArray;
         String credentialIdForAttribute, tmpcredId, tmpSchemaId, tmpRevRegistryId, tmpRevCredRegistryId;
         ArrayList<String> credentialID = new ArrayList<>();
@@ -930,7 +997,8 @@ public class Agent {
         }
         schemas = jsonObject.toString(4);
         jsonObject = new JSONObject();
-        String credentialDefs;
+        String credentialDefs,ris;
+        long prerequest,postRequest;
         LedgerResults.ParseResponseResult responseResult = null;
         for (String credDefId : (String[]) (new HashSet(fetchedAttrProofs.AttrcredDefIDs)).toArray(String[]::new)) {
             //necessario trovare la credential definition corrispondente allo schema
@@ -938,7 +1006,11 @@ public class Agent {
             //System.out.println("credDefIdRqeuqested "+credDefId+"\n  w");
             try {
                 String req = Ledger.buildGetCredDefRequest(this.mainDID.didName, credDefId).get();
-                String ris = Ledger.submitRequest(this.poolConnection, req).get();
+                prerequest = System.currentTimeMillis();
+                ris = Ledger.submitRequest(this.poolConnection, req).get();
+                postRequest = System.currentTimeMillis();
+                System.out.println("Pre request CREDENTIAL DEF: "+ prerequest + "post request:"+ postRequest + "delta:"
+                + (postRequest-prerequest));
                 responseResult =
                         Ledger.parseGetCredDefResponse(ris).get();
             } catch (IndyException e) {
@@ -956,9 +1028,14 @@ public class Agent {
             //System.out.println("credDefIdRqeuqested "+credDefId+"\n  w");
             try {
                 String req = Ledger.buildGetCredDefRequest(this.mainDID.didName, credDefId).get();
-                String ris = Ledger.submitRequest(this.poolConnection, req).get();
+                prerequest = System.currentTimeMillis();
+                ris = Ledger.submitRequest(this.poolConnection, req).get();
+                postRequest = System.currentTimeMillis();
+                System.out.println("Pre request CREDENTIAL DEF: "+ prerequest + "post request:"+ postRequest + "delta:"
+                        + (postRequest-prerequest));
                 responseResult =
                         Ledger.parseGetCredDefResponse(ris).get();
+
             } catch (IndyException e) {
                 e.printStackTrace();
             } catch (ExecutionException e) {
@@ -984,7 +1061,11 @@ public class Agent {
             try {
                 request = Ledger.buildGetRevocRegDeltaRequest(this.mainDID.didName,
                         revDefID, timestamp, timestamp).get(); // read the delta for the interval, which was requested in the proof request
+                prerequest =System.currentTimeMillis();
                 response = Ledger.submitRequest(this.poolConnection, request).get();
+                postRequest = System.currentTimeMillis();
+                System.out.println("GET RevocRegDelta pre" + prerequest + " post"+postRequest + "delta"+
+                        (postRequest-prerequest));
                 LedgerResults.ParseRegistryResponseResult deltaResult = Ledger.parseGetRevocRegDeltaResponse(response).
                         get();
                 String delta = deltaResult.getObjectJson();
@@ -1016,7 +1097,12 @@ public class Agent {
             try {
                 request = Ledger.buildGetRevocRegDeltaRequest(this.mainDID.didName,
                         revDefID, timestamp, timestamp).get(); // read the delta for the interval, which was requested in the proof request
+                prerequest= System.currentTimeMillis();
                 response = Ledger.submitRequest(this.poolConnection, request).get();
+                postRequest=System.currentTimeMillis();
+                System.out.println("GET RevocRegDelta pre" + prerequest + " post"+postRequest + "delta"+
+                        (postRequest-prerequest));
+
                 LedgerResults.ParseRegistryResponseResult deltaResult = Ledger.parseGetRevocRegDeltaResponse(response).
                         get();
                 String delta = deltaResult.getObjectJson();
@@ -1045,21 +1131,32 @@ public class Agent {
             this.createMasterSecret();
         System.out.println("masterSecret" + this.masterSecret);
         //System.out.println("inizio\n1"+proofRequestJson+"\n2"+requestedCredentialsJson+"\n3"+ this.masterSecret+"\n4"+ schemas+"\n5" +credentialDefs+"\n6"+revocStates+"\n fin\n");
-
+        Long pre,post;
         try {
             System.out.println("1:" + proofRequestJson + "\n2:" + requestedCredentialsJson + "\n3:"
                     + this.masterSecret + "\n4" + schemas + "\n5" + credentialDefs + "\n6" + revStateObj.toString(4));
-            if(revStateObj.toString().equals("{}"))
+            if(revStateObj.toString().equals("{}")) {
+                pre=System.currentTimeMillis();
                 proofJson = Anoncreds.proverCreateProof(this.mainWallet, proofRequestJson, requestedCredentialsJson,
-                        this.masterSecret,
-                        schemas, credentialDefs,
-                        new JSONObject("{}").
-                                toString()).
+                                this.masterSecret,
+                                schemas, credentialDefs,
+                                new JSONObject("{}").
+                                        toString()).
                         get();
+                post=System.currentTimeMillis();
+                System.out.println("proverCreateProof pre: "+ pre + "post:"+ post+ "delta:"+
+                        (post-pre) );
 
+            }
             else {
+                pre=System.currentTimeMillis();
+
                 proofJson = Anoncreds.proverCreateProof(this.mainWallet, proofRequestJson, requestedCredentialsJson,
                         this.masterSecret, schemas, credentialDefs, revStateObj.toString(4)).get();
+                post=System.currentTimeMillis();
+                System.out.println("proverCreateProof pre: "+ pre + "post:"+ post+ "delta:"+
+                        (post-pre) );
+
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -1068,7 +1165,6 @@ public class Agent {
         } catch (IndyException e) {
             e.printStackTrace();
         }
-
         ProofCreationExtra proofCreationExtra = new
                 ProofCreationExtra(proofRequestJson, new JSONObject(proofJson).toString(4), schemas, credentialDefs);
 
@@ -1111,9 +1207,14 @@ public class Agent {
     public String getRevocationDefinition(RevocationRegistryObject revreg) {
         String request, response;
         JSONObject revocRegDefs = new JSONObject();
+        long preRequest,postrequest;
         try {
             request = Ledger.buildGetRevocRegDefRequest(this.mainDID.didName, revreg.revRegId).get();
+            preRequest= System.currentTimeMillis();
             response = Ledger.submitRequest(this.poolConnection, request).get();
+            postrequest=System.currentTimeMillis();
+            System.out.println("RevocRegDefRequest pre: "+ preRequest + "post:"+ postrequest+ "delta:"+
+                    (postrequest-preRequest) );
             LedgerResults.ParseResponseResult parseResult = Ledger.parseGetRevocRegDefResponse(response).get();
             String revRegDefReadFromLedgerByVerifier = parseResult.getObjectJson();
             revocRegDefs = (new JSONObject(revRegDefReadFromLedgerByVerifier));
@@ -1132,9 +1233,16 @@ public class Agent {
     public String getRevocationDefinition(String revRegId) {
         String request, response;
         JSONObject revocRegDefs = new JSONObject();
+        long preRequest,postrequest;
         try {
             request = Ledger.buildGetRevocRegDefRequest(this.mainDID.didName, revRegId).get();
+            preRequest= System.currentTimeMillis();
             response = Ledger.submitRequest(this.poolConnection, request).get();
+            postrequest=System.currentTimeMillis();
+
+            System.out.println("RevocRegDefRequest pre: "+ preRequest + "post:"+ postrequest+ "delta:"+
+                    (postrequest-preRequest) );
+
             LedgerResults.ParseResponseResult parseResult = Ledger.parseGetRevocRegDefResponse(response).get();
             return parseResult.getObjectJson();
         } catch (InterruptedException e) {
@@ -1150,9 +1258,15 @@ public class Agent {
 
     public String getDeltaForProof(RevocationRegistryObject revRegSub, long time) {
         String request, response;
+        long preRequest,postrequest;
         try {
             request = Ledger.buildGetRevocRegDeltaRequest(this.mainDID.didName, revRegSub.revRegId, time, time).get();
+            preRequest= System.currentTimeMillis();
             response = Ledger.submitRequest(this.poolConnection, request).get();
+            postrequest=System.currentTimeMillis();
+            System.out.println("RevocRegDeltaRequest pre: "+ preRequest + "post:"+ postrequest+ "delta:"+
+                    (postrequest-preRequest) );
+
             System.out.println("Prover has read the revoc delta for interval from: " + time + "to: " + time + " response from ledger \n" + response + "\n");
             LedgerResults.ParseRegistryResponseResult parseRegRespResult = parseGetRevocRegDeltaResponse(response).get();
             String proverReadDeltaFromLedger = parseRegRespResult.getObjectJson();
@@ -1659,4 +1773,65 @@ public class Agent {
         this.mainDID=new DIDStructure(did,verkey);
         this.DIDCollection.put(did,this.mainDID);
     }
+    public boolean addENdpointToNYM(String endpointName,String endpointAddres){
+        String attribReq, attribResponse;
+        String raw = IndyJsonStringBuilder.endpointJson(endpointName,endpointAddres);
+        long pre,post;
+        try {
+
+            //buildAttribRequest(String submitterDid,String targetDid, String hash, String raw, String enc )
+            attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
+                    , null, raw,null).get();
+            //signAndSubmitRequest(Pool pool,Wallet wallet,String submitterDid,String requestJson)
+            pre= System.currentTimeMillis();
+            attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
+            post = System.currentTimeMillis();
+            System.out.println("ATTRIB TRANSACTION ENDPOINT pre:"+ pre+ " post: "+post + "delta"+ (post-pre));
+
+            System.out.println("addAttribute Response : "+ attribResponse);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return false;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    public boolean addENdpointToNYMOnSovrin(String endpointName,String endpointAddres ,String taaDigest,
+                                            String acceptanceMechanism,Long acceptanceTimestamp){
+        //add endpoint to NYM, with pool being the Sovrin Buildernet.
+        String attribReq, attribResponse;
+        String raw = IndyJsonStringBuilder.endpointJson(endpointName,endpointAddres);
+        String appendedTTARequest;
+        long pre,post;
+        try {
+            //buildAttribRequest(String submitterDid,String targetDid, String hash, String raw, String enc )
+            attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
+                    , null, raw,null).get();
+            appendedTTARequest=Ledger.appendTxnAuthorAgreementAcceptanceToRequest(attribReq,null,null,taaDigest,
+                    acceptanceMechanism,acceptanceTimestamp ).get();
+            pre=System.currentTimeMillis();
+            //signAndSubmitRequest(Pool pool,Wallet wallet,String submitterDid,String requestJson)
+            attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, appendedTTARequest).get();
+            post = System.currentTimeMillis();
+            System.out.println("ATTRIB REQUEST :"+pre + " post:"+post + "delta: "+(post-pre));
+            System.out.println("addAttribute Response : "+ attribResponse);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return false;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return false;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
 }

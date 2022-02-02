@@ -1,13 +1,15 @@
 package SideTests;
 
-import IndyLibraries.*;
+import IndyLibraries.Endorser;
+import IndyLibraries.IndyJsonStringBuilder;
+import IndyLibraries.JSONUserCredentialStorage;
+import IndyLibraries.SchemaStructure;
 import org.hyperledger.indy.sdk.IndyException;
 import org.hyperledger.indy.sdk.anoncreds.Anoncreds;
 import org.hyperledger.indy.sdk.anoncreds.AnoncredsResults;
 import org.hyperledger.indy.sdk.did.Did;
 import org.hyperledger.indy.sdk.ledger.Ledger;
 import org.hyperledger.indy.sdk.pool.Pool;
-import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
@@ -17,10 +19,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
+import java.util.Scanner;
 import java.util.concurrent.ExecutionException;
 
-public class onlineMainTest {
+public class stressOnlineTest {
     //Similar to sideTestIndy but this time Spotify/External service issues credentials too.
     public static void main(String[] args) {
         Pool pool = null;
@@ -77,67 +79,40 @@ public class onlineMainTest {
         String schemaId;
         String schemaJson;
         SchemaStructure schemaStructure;
+        long accepttime=1643160836; //must be in range.
+        String taa="8cee5d7a573e4893b08ff53a0761a22a1607df3b3fcd7e75b98696c92879641f";
+                String acceptance="for_session";
         try {
-            String[] attributesForSchema = {"one", "test", "with","a","lot","of","attributes","looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong","attributes" ,"1"};
-            createSchemaResult = Anoncreds.issuerCreateSchema("31s62mrw7S2waAbga7n8n9", "TestSchema8", "2.0",
-                    IndyJsonStringBuilder.createSchemaAttributesString(attributesForSchema)).get();
-            String schemaRequest = Ledger.buildSchemaRequest("31s62mrw7S2waAbga7n8n9", createSchemaResult.getSchemaJson()).get();
+            System.out.println("Do you agree to perform 20 transactions?");
+            Scanner sc= new Scanner(System.in);
+            sc.next();
+            String[] attributesForSchema = {"lot","of","attributes","abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" ,"1"};
             //Null data or empty JSON are acceptable here. In this case, ledger will return the latest version of TAA.
-            String taaRequest, taa = null;
-            String accRequest, acc;
-            try {
-                taaRequest = Ledger.buildGetTxnAuthorAgreementRequest("31s62mrw7S2waAbga7n8n9", null).get();
-                taaRequest = new JSONObject(taaRequest).toString(4);
-                System.out.println("taaRequest request\n" +
-                        taaRequest);
-                taa = Ledger.signAndSubmitRequest(pool, university.mainWallet, "31s62mrw7S2waAbga7n8n9", taaRequest).get();
-                taa = new JSONObject(taa).toString(4);
-                System.out.println("taa from ledger\n" +
-                        taa);
-                //@param timestamp - time to get an active acceptance mechanisms. Pass -1 to get the latest one.
-
-                accRequest = Ledger.buildGetAcceptanceMechanismsRequest("31s62mrw7S2waAbga7n8n9", -1, null).get();
-                accRequest = new JSONObject(accRequest).toString(4);
-                System.out.println("accRequest request\n" +
-                        accRequest);
-                acc = Ledger.signAndSubmitRequest(pool, university.mainWallet, "31s62mrw7S2waAbga7n8n9", accRequest).get();
-                acc = new JSONObject(acc).toString(4);
-                System.out.println("acc from ledger\n" +
-                        acc);
-
-            } catch (IndyException e) {
-                e.printStackTrace();
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            int i;
+            /*test sulle cred schema errate
+            for (i=0; i<20; i++) {
+                university.publishschemaOnSovrin("testschemaNumber", String.valueOf(i),attributesForSchema,taa,acceptance,accepttime);
+            }*/
+            //test sulle cred schema corrette
+            /*for (i=0; i<20; i++) {
+                university.publishschemaOnSovrin("testschemaNumbem", String.valueOf(i)+".0",attributesForSchema,taa,acceptance,accepttime);
+            }*//*
+            //get schema + cred def on non existing schema
+            /*
+            schemaJson="{\"ver\":\"1.0\",\"id\":\"31s62mrw7S2waAbga7n8n9:2:testschemaNumber:50.0\",\"name\":\"testschemaNumber\",\"version\":\"50.0\",\"attrNames\":[\"1\",\"of\",\"llibutes\",\"re\",\"lot\"],\"seqNo\":1}";
+            for (i=0;i<20;i++){
+                university.IssuerCreateStoreAndPublishPrefinedSchemaCredDefOnSovrin("c*"+i,true,"31s62mrw7S2waAbga7n8n9:2:testschemaNumber:50.0",taa,acceptance,accepttime,schemaJson);
             }
-            String appendRequ;
-            String response;
-            //long accepttime=Instant.now().getEpochSecond();first time
-            long accepttime=1643160836; //must be in range.
-            System.out.println(accepttime);
-            appendRequ=Ledger.appendTxnAuthorAgreementAcceptanceToRequest(schemaRequest,null,null,"8cee5d7a573e4893b08ff53a0761a22a1607df3b3fcd7e75b98696c92879641f",
-                    "for_session", accepttime).get();
-            long before=System.currentTimeMillis();
-            response=Ledger.signAndSubmitRequest(pool, university.mainWallet, "31s62mrw7S2waAbga7n8n9", appendRequ).get();
-            long after = System.currentTimeMillis();
-            System.out.println(response);
-            System.out.println("LockerBox before: "+ before + "and after: "+after + "in the mean time:" + (after-before));
-            Thread.sleep(1000);
-            System.out.println("LockerBox aLL METRICS: "+ university.collectMetrics() );
-        /*
-        SchemaStructure StudentIdentitySchema=university.
-                publishschema("StudentIdentity","1.0",attributesForSchema);
-          */
-            //System.out.println("Schema credenziali di ID: "+ StudentIdentitySchema.schemaId+": \n"+new JSONObject(StudentIdentitySchema.schemaJson).toString(4) + "\n");
+            */
 
-        } catch (IndyException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
+            schemaJson="{\"ver\":\"1.0\",\"id\":\"31s62mrw7S2waAbga7n8n9:2:testschemaNumber:18.0\",\"name\":\"testschemaNumber\",\"version\":\"18.0\",\"attrNames\":[\"1\",\"of\",\"attributes\",\"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\",\"lot\"],\"seqNo\":15222}";
+            university.IssuerCreateStoreAndPublishPrefinedSchemaCredDefOnSovrin("X",true,"31s62mrw7S2waAbga7n8n9:2:testschemaNumber:18.0",taa,acceptance,accepttime,schemaJson);
+
+
+
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
 }

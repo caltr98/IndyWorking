@@ -13,17 +13,17 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-public class ShippingAgent implements Runnable {
-    private String shippingAgentName;
-    private Agent IndyShippingAgent;
+public class ShippingDeliverer implements Runnable {
+    protected String shippingAgentName;
+    protected Agent IndyShippingDeliverer;
     private Pool pool;
-    private Long deliveryIdentifier;
-    private HashMap<SocketAddress,String>addresstodid;
-    private InetSocketAddress currentTalker;
+    protected Long deliveryIdentifier;
+    protected HashMap<SocketAddress,String>addresstodid;
+    protected InetSocketAddress currentTalker;
     private DatagramSocket datagramSocket;
-    private HashMap<Long,DeliveryObject> requestedDeliveries;
-    private Queue<DeliveryObject> deliveries;
-    public ShippingAgent(String  poolName,String shippingAgentName,String walletName,String walletpass){
+    protected HashMap<Long,DeliveryObject> requestedDeliveries;
+    protected Queue<DeliveryObject> deliveries;
+    public ShippingDeliverer(String  poolName, String shippingAgentName, String walletName, String walletpass){
         this.requestedDeliveries= new HashMap<>();
         this.deliveries = new LinkedList<>();
         this.shippingAgentName=shippingAgentName;
@@ -57,13 +57,48 @@ public class ShippingAgent implements Runnable {
             e.printStackTrace();
         }
 
-        IndyShippingAgent= new Agent(pool,shippingAgentName,jsonStoredCred);
-        IndyShippingAgent.CreateWallet("shippingAgentWallet"+shippingAgentName,"abcd");
-        IndyShippingAgent.OpenWallet("shippingAgentWallet"+shippingAgentName,"abcd");
-        IndyShippingAgent.createDID();
-        IndyShippingAgent.createMasterSecret();
+        IndyShippingDeliverer = new Agent(pool,shippingAgentName,jsonStoredCred);
+        IndyShippingDeliverer.CreateWallet("shippingDelivererWallet"+shippingAgentName,walletpass);
+        IndyShippingDeliverer.OpenWallet("shippingDelivererWallet"+shippingAgentName,walletpass);
+        IndyShippingDeliverer.createDID();
+        IndyShippingDeliverer.createMasterSecret();
 
     }
+
+    public ShippingDeliverer(Pool pool, String shippingAgentName, String walletname, String walletpassword) {
+        //create a ShippingDeliverer with a given pool handle.
+        //Can be used to connect to the Sovrin Network!
+        this.requestedDeliveries= new HashMap<>();
+        this.deliveries = new LinkedList<>();
+        this.shippingAgentName=shippingAgentName;
+        this.addresstodid=new HashMap<>();
+        this.currentTalker =null;
+        try {
+            this.datagramSocket=new DatagramSocket();
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        this.pool = pool;
+        JSONUserCredentialStorage jsonStoredCred=null;
+        File agentsFile=new File("./"+"agentsFile"+".json");
+        try {
+            jsonStoredCred = new JSONUserCredentialStorage(agentsFile);
+        }catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        IndyShippingDeliverer = new Agent(pool,shippingAgentName,jsonStoredCred);
+        IndyShippingDeliverer.CreateWallet("shippingDelivererWallet"+shippingAgentName,walletpassword);
+        IndyShippingDeliverer.OpenWallet("shippingDelivererWallet"+shippingAgentName,walletpassword);
+        IndyShippingDeliverer.createDID();
+        IndyShippingDeliverer.createMasterSecret();
+
+    }
+
     @Override
     public void run() {
         DatagramSocket datagramSocket=this.datagramSocket;
@@ -75,7 +110,7 @@ public class ShippingAgent implements Runnable {
         while (!stop) {
             while (!deliveries.isEmpty()){
                 deliveries.remove().deliverItem();
-                System.out.println("Shipping AGent metrics after one delivery\n"+IndyShippingAgent.collectMetrics());
+                System.out.println("Shipping AGent metrics after one delivery\n"+ IndyShippingDeliverer.collectMetrics());
             }
             receivedMSG=receiveMSG(datagramSocket);
             //integra handshake in handle message
@@ -103,7 +138,7 @@ public class ShippingAgent implements Runnable {
             for(i= 0 ;i <toReceive.getLength();i++ ){
                 dataArray[i]=datagramBuffer[i];
             }
-            String didToDIDInfo=IndyShippingAgent.acceptConnection
+            String didToDIDInfo= IndyShippingDeliverer.acceptConnection
                     (new String(dataArray,Charset.defaultCharset()),
                             this.shippingAgentName);
             JSONObject jsonObjectInfoForDID2DID = new JSONObject(didToDIDInfo);
@@ -136,18 +171,18 @@ public class ShippingAgent implements Runnable {
                     e.printStackTrace();
                 }
             }
-            message = IndyShippingAgent.readMessage(dataArray);
+            message = IndyShippingDeliverer.readMessage(dataArray);
             currentTalker = new InetSocketAddress(toReceive.getAddress(),toReceive.getPort());
             System.out.println("arrived message from store!" + message);
         }
         return message;
     }
 
-    private String handleMessage(String message){
+    protected String handleMessage(String message){
         System.out.println("RECEIVED MES"+ message);
         JSONObject messageJOBJECT= new JSONObject(message);
         if(messageJOBJECT.get("request").equals("GetShippingAgentID")) {
-            byte[] msg = IndyShippingAgent.writeMessage(this.shippingAgentName,
+            byte[] msg = IndyShippingDeliverer.writeMessage(this.shippingAgentName,
                     addresstodid.get(currentTalker));
             sendMSG(msg, currentTalker);
             return "Success giving ShippingAgentID";
@@ -158,7 +193,7 @@ public class ShippingAgent implements Runnable {
             DeliveryObject deliveryObject =new DeliveryObject(
                         messageJOBJECT.getString("itemCredentialOffer"));
                 this.requestedDeliveries.put(deliveryObject.deliveryIdentifier,deliveryObject);
-                byte [] msg= IndyShippingAgent.writeMessage(new JSONObject().put
+                byte [] msg= IndyShippingDeliverer.writeMessage(new JSONObject().put
                         ("deliveryId",deliveryObject.deliveryIdentifier).toString(),addresstodid.get(currentTalker));
                 sendMSG(msg, currentTalker);
                 msg=deliveryObject.DeliveryCredRequest();
@@ -197,7 +232,7 @@ public class ShippingAgent implements Runnable {
             e.printStackTrace();
         }
     }
-    private void sendMSG(byte[] toSend,InetSocketAddress theirAddress) {
+    protected void sendMSG(byte[] toSend, InetSocketAddress theirAddress) {
         try  {
             DatagramPacket datagramPacket = new DatagramPacket(toSend, toSend.length,
                     theirAddress.getAddress(),theirAddress.getPort());
@@ -208,7 +243,7 @@ public class ShippingAgent implements Runnable {
     }
 
 
-    private class DeliveryObject {
+    protected class DeliveryObject {
         private String credOffer;
         CredOfferStructure DeliveryCredentialOffer;
         int lockerBoxPort;
@@ -239,17 +274,17 @@ public class ShippingAgent implements Runnable {
             CredOfferStructure credOfferReceived = new CredOfferStructure(credDefStructure,
                     cred_offerJson.getString("credOffer"));
             this.DeliveryCredentialOffer = credOfferReceived;
-            CredRequestStructure cred_req=IndyShippingAgent.returnproverCreateCredentialRequest(DeliveryCredentialOffer);
+            CredRequestStructure cred_req= IndyShippingDeliverer.returnproverCreateCredentialRequest(DeliveryCredentialOffer);
             this.DeliveryCredentialRequest= cred_req;
             System.out.println("CREDENTIAL REQUEST"+ cred_req.credReqJson);
-            return IndyShippingAgent.credentialRequestMSG(addresstodid.get(currentTalker),this.DeliveryCredentialRequest.credReqJson,
+            return IndyShippingDeliverer.credentialRequestMSG(addresstodid.get(currentTalker),this.DeliveryCredentialRequest.credReqJson,
                     this.DeliveryCredentialOffer.credOffer);
 
         }
         public String DeliveryCred(String credential,String LockerBoxAddress, int LockerBoxPort){
 
 
-            String storeCredential=IndyShippingAgent.storeCredentialInWallet(null,DeliveryCredentialOffer.credDef.credDefId
+            String storeCredential= IndyShippingDeliverer.storeCredentialInWallet(null,DeliveryCredentialOffer.credDef.credDefId
                     ,DeliveryCredentialRequest.credReqMetadataJson,
                     credential,
                     DeliveryCredentialOffer.credDef.credDefJson,
@@ -268,11 +303,11 @@ public class ShippingAgent implements Runnable {
         public String deliverItem() {
             //handshake with LockerBox and ask to insert Item in Box
             boxAddress = new InetSocketAddress(this.lockerBoxAddress, this.lockerBoxPort);
-            box2ShippingAgentDID = IndyShippingAgent.createDID2DIDCommunication("anon",boxAddress,ds);
+            box2ShippingAgentDID = IndyShippingDeliverer.createDID2DIDCommunication("anon",boxAddress,ds);
             addresstodid.put(boxAddress,box2ShippingAgentDID);
             JSONObject messageJOBJECT = new JSONObject().put("request", "PutItem0");
             //sending request for object
-            byte[] msg = IndyShippingAgent.writeMessage(messageJOBJECT.toString(), box2ShippingAgentDID);
+            byte[] msg = IndyShippingDeliverer.writeMessage(messageJOBJECT.toString(), box2ShippingAgentDID);
             sendMSG(msg, this.boxAddress);
             //receiving proof request
             String proofRequest = receiveMSG(this.ds);
@@ -286,18 +321,18 @@ public class ShippingAgent implements Runnable {
                         getJSONArray("requested_revealed_attributes").toList().
                         toArray(String[]::new)));
                 ProofAttributesFetched attributesFetched =
-                        IndyShippingAgent.
+                        IndyShippingDeliverer.
                                 returnProverSearchAttrForProof
                                         (proofReq, requested_revealed);
 
-                ProofCreationExtra proof = IndyShippingAgent.proverCreateProof(attributesFetched, proofReq,null
+                ProofCreationExtra proof = IndyShippingDeliverer.proverCreateProof(attributesFetched, proofReq,null
                         , null, -1);
                 //ProofCreationExtra proof= customerIndy.returnProverSearchAttrAndCreateProofSimple(proofReq,null,currentTimeofproof);
                 //NOTE:Proof with predicates is really big, a device with little memory can't handle it
                 System.out.println("Proof Dimension" + proof.proofJson.getBytes(StandardCharsets.UTF_8).length + " bytes");
                 JSONObject sendProof = new JSONObject().put("proof", proof.proofJson).put("request", "PutItem1").put("cred_defs", proof.credentialDefs)
                         .put("schemas", proof.schemas).put("proofrequest", proof.proofRequestJson);
-                msg = IndyShippingAgent.writeMessage(sendProof.toString(4),
+                msg = IndyShippingDeliverer.writeMessage(sendProof.toString(4),
                         box2ShippingAgentDID);
                 System.out.println("D2D proof message size (with cred_defs and schemas)" + msg.length + " bytes");
                 sendMSG(msg, this.boxAddress);
@@ -376,7 +411,7 @@ public class ShippingAgent implements Runnable {
             for(i= 0 ;i <toReceive.getLength();i++ ){
                 dataArray[i]=datagramBuffer[i];
             }
-            message = IndyShippingAgent.readMessage(dataArray);
+            message = IndyShippingDeliverer.readMessage(dataArray);
             return message;
         }
 

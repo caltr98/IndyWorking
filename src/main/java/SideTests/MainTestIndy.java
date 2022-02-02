@@ -70,7 +70,7 @@ public class MainTestIndy {
         Endorser University = new Endorser(pool,"UNIPI",jsonStoredCred);
         //University.CreateWallet("endorserwallet","abcd");
         University.OpenWallet("endorserwallet","abcd");
-        University.createDID();
+        University.createDID("000000000000000000000000Stevied2");
 
         feedback=Ministero.assignEndorserRole(University.mainDID,true);
         System.out.println("ruolo di Steward assegnato?"+feedback);
@@ -333,10 +333,5 @@ public class MainTestIndy {
         }
 
         System.out.println("ending");
-        //1)ProofRequest con i predicati e il campo non revoked
-        //2)verifica della proof request con campi misti da due schema diversi
-        //3) implementare revocazione
-        //4)check della proof dopo la revocazione
-        //5)profit ?*/
     }
 }

@@ -22,8 +22,10 @@ public class Trustee extends Endorser{
             nymRequest = Ledger.buildNymRequest(mainDID.didName,
                     newEndorserDid.didName, newEndorserDid.didVerKey, null, IndyConstants.ROLE_STEWARD).get();
             System.out.println("request to assign steward role : \n"+nymRequest);
-
+            pre=System.currentTimeMillis();
             nymResponseJson = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, nymRequest).get();
+            post = System.currentTimeMillis();
+            System.out.println("NymRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
             System.out.println(nymResponseJson);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -45,7 +47,11 @@ public class Trustee extends Endorser{
         try {
             attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
                     , null, raw,null).get();
+            pre=System.currentTimeMillis();
             attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
+            post = System.currentTimeMillis();
+            System.out.println("Attrib pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             System.out.println("addAttribute Response : "+ attribResponse);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -66,7 +72,11 @@ public class Trustee extends Endorser{
         try {
             attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
                     , null, raw,null).get();
+            pre=System.currentTimeMillis();
             attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
+            post = System.currentTimeMillis();
+            System.out.println("ATTRIBrequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             System.out.println("addAttribute Response : "+ attribResponse);
         } catch (InterruptedException e) {
             e.printStackTrace();

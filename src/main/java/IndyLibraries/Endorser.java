@@ -12,6 +12,7 @@ import org.hyperledger.indy.sdk.pool.Pool;
 import org.json.JSONObject;
 
 import javax.crypto.NoSuchPaddingException;
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -43,7 +44,7 @@ public class Endorser extends Agent {
     //publish schema to ledger, returns (SchemaId,SchemaJson) in the ledger and add (SchemaId,SchemaJson) to this IndyLibraries.Agent IndyLibraries.Endorser
     //Schema collection
     public SchemaStructure publishschema(String schemaName, String schemaVersion, String[] schemaAttributes){
-
+        long preSubmit,postSumbit;
         AnoncredsResults.IssuerCreateSchemaResult createSchemaResult =
                 null;
         String schemaId;
@@ -54,8 +55,13 @@ public class Endorser extends Agent {
             createSchemaResult = Anoncreds.issuerCreateSchema(this.mainDID.didName, schemaName, schemaVersion,
                     IndyJsonStringBuilder.createSchemaAttributesString(schemaAttributes)).get();
             String schemaRequest = Ledger.buildSchemaRequest(this.mainDID.didName, createSchemaResult.getSchemaJson()).get();
+            preSubmit=System.currentTimeMillis();
             String s=Ledger.signAndSubmitRequest(this.poolConnection, this.mainWallet, this.mainDID.didName, schemaRequest).get();
-            System.out.println("string submitted "+ s);
+            postSumbit=System.currentTimeMillis();
+            System.out.println("SCHEMA transaction local presubmit: "+ preSubmit + " postsubmit: "+postSumbit +
+                    " delta:"+ (postSumbit-preSubmit) );
+            System.out.println("result of transaction create schame: \n"+s);
+
         } catch (InterruptedException e) {
             e.printStackTrace();
             return null;
@@ -75,6 +81,52 @@ public class Endorser extends Agent {
         }
         return null;
     }
+    public SchemaStructure publishschemaOnSovrin(String schemaName, String schemaVersion, String[] schemaAttributes,
+                                                 String taaDigest,
+                                                 String taaAcceptanceMechanism, Long acceptanceTimestamp){
+
+        AnoncredsResults.IssuerCreateSchemaResult createSchemaResult =
+                null;
+        String schemaId;
+        String schemaJson;
+        SchemaStructure schemaStructure;
+        String appendedTTARequest;
+        Long preSubmit,postSubmit;
+        String s;
+        try {
+
+            createSchemaResult = Anoncreds.issuerCreateSchema(this.mainDID.didName, schemaName, schemaVersion,
+                    IndyJsonStringBuilder.createSchemaAttributesString(schemaAttributes)).get();
+            String schemaRequest = Ledger.buildSchemaRequest(this.mainDID.didName, createSchemaResult.getSchemaJson()).get();
+            appendedTTARequest = appendTxnAuthorAgreementAcceptanceToRequest(schemaRequest, null, null, taaDigest,
+                    taaAcceptanceMechanism, acceptanceTimestamp).get();
+            preSubmit=System.currentTimeMillis();
+            s=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,appendedTTARequest).get();
+            //System.out.println("string submitted cred def "+ s);
+            postSubmit=System.currentTimeMillis();
+            System.out.println("Schema Definition on Sovrin presubmit: "+ preSubmit + " postsubmit: "+postSubmit +
+                    " delta:"+ (postSubmit-preSubmit) );
+            System.out.println("result of transaction create schame: \n"+s);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return null;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return null;
+        }
+        if(createSchemaResult!=null) {
+            schemaId = createSchemaResult.getSchemaId();
+            schemaJson = createSchemaResult.getSchemaJson();
+            schemaStructure=new SchemaStructure(schemaId,schemaName,schemaJson,schemaAttributes,schemaVersion);
+            this.SchemaCollection.put(schemaId,schemaStructure);
+            return schemaStructure;
+        }
+        return null;
+    }
+
     public String publishRevocationRegistryDefinition( RevocationRegistryObject revocationRegistry){
         //blocco fondamentale : revocation Registry definition viene definita solo quando , si aggiunge ad una
         //credential definition già pubblicata senza revocation registry o non con questo nuovo revocation registry
@@ -118,7 +170,8 @@ public class Endorser extends Agent {
                     registryDelta,
                     time,revocationRegistry.revRegDefJson);
             toRevokeee=Ledger.buildRevocRegEntryRequest(this.mainDID.didName,revocationRegistry.revRegId,
-                    "CL_ACCUM",registryDelta).get();
+                    "CL_ACCUM",registryDelta).
+                    get();
             String revRegistryRequest = Ledger.buildRevocRegDefRequest(this.mainDID.didName,revocationRegistry.revRegDefJson).get();
             System.out.println(signAndSubmitRequest(this.poolConnection,this.mainWallet,
                     this.mainDID.didName,revRegistryRequest).get());
@@ -137,6 +190,70 @@ public class Endorser extends Agent {
         }
     }
 
+    public CredDefStructure IssuerCreateStoreAndPublishPrefinedSchema(String credDefTag,boolean supportRevocation,String schemaID,String schemaJson){
+        String credDefId,credDefJson,credDefRequest;
+        CredDefStructure credDefStructure;
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credDefResult = null;
+        String credDefConfigJson =IndyJsonStringBuilder.typeSpecificConfigCredDef(supportRevocation);
+        //search for schemaJson
+        String appendedTTARequest;
+        SchemaStructure schemaStructure=this.SchemaCollection.get(schemaID);
+        Long preSubmit,postSubmit;
+        try {
+            System.out.println("is wallet null" + this.mainWallet == null);
+            //NOTE: the method issuerCreateAndStoreCredentialDef will encapsulate the secret keys for issuing cred
+            //and revoking credential,so that only the cred_def creator can issuer it and revoke it
+            //in this case we have verkey+ pair of keys of signign, different from the one used to authenticate the
+            //issuer DID
+            credDefResult=
+                    Anoncreds.issuerCreateAndStoreCredentialDef(this.mainWallet, this.mainDID.didName, schemaJson, credDefTag, null,   credDefConfigJson).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return null;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return null;
+        }
+        if(credDefResult!=null) {
+            credDefId = credDefResult.getCredDefId();
+            credDefJson = credDefResult.getCredDefJson();
+            //System.out.println("cred ded json"+ credDefJson);
+            String s;
+            //publish credef
+            try {
+
+                credDefRequest = Ledger.buildCredDefRequest(this.mainDID.didName, credDefJson).get();
+                for (int i = 0; i < 20; i++) {
+                preSubmit = System.currentTimeMillis();
+                s = Ledger.signAndSubmitRequest(this.poolConnection, this.mainWallet, this.mainDID.didName, credDefRequest).get();
+                //System.out.println("string submitted cred def "+ s);
+                postSubmit = System.currentTimeMillis();
+                System.out.println("CLAIM_DEF transaction local presubmit: " + preSubmit + " postsubmit: " + postSubmit +
+                        " delta:" + (postSubmit - preSubmit));
+                    System.out.println("result of transaction create cred def: \n"+s);
+                }
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                return null;
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+                return null;
+            } catch (IndyException e) {
+                e.printStackTrace();
+                return null;
+            }
+            //storing credef structure
+            credDefStructure = new CredDefStructure(credDefId,credDefJson);
+            this.CredDefsCollection.put(credDefId,credDefStructure);
+
+            return credDefStructure;
+        }
+        return null;
+    }
 
     public CredDefStructure IssuerCreateStoreAndPublishCredDef(String credDefTag,boolean supportRevocation,String schemaID){
         String credDefId,credDefJson,credDefRequest;
@@ -146,7 +263,7 @@ public class Endorser extends Agent {
         //search for schemaJson
         String schemaJson;
         SchemaStructure schemaStructure=this.SchemaCollection.get(schemaID);
-
+        long pre,post;
         if (schemaStructure!=null)
             schemaJson=schemaStructure.schemaJson;
         else
@@ -156,7 +273,10 @@ public class Endorser extends Agent {
             String getSchemaRequest=Ledger.buildGetSchemaRequest(this.mainDID.didName,
                     schemaID).get();//la differenza tra metodo per creare e ottenere è 'GET'
             //System.out.println("schema id -ed- "+schemaID);
+            pre=System.currentTimeMillis();
             String s=Ledger.submitRequest(this.poolConnection,getSchemaRequest).get();
+            post = System.currentTimeMillis();
+            System.out.println("GetSchemaReq pre:"+ pre+" post:"+post+" delta: "+(post-pre) );
             //necessario parsare lo schema ottenuto in uno frienldy con AnonCreds API e issuer credential
             LedgerResults.ParseResponseResult responseScheme = parseGetSchemaResponse(s).get();
 
@@ -188,7 +308,10 @@ public class Endorser extends Agent {
             try {
                 credDefRequest = Ledger.buildCredDefRequest(this.mainDID.didName,credDefJson).get();
                 //System.out.println("\ncred def def "+credDefRequest);
+                pre =System.currentTimeMillis();
                 String s=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,credDefRequest).get();
+                post =System.currentTimeMillis();
+                System.out.println("cred def pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
                 //System.out.println("string submitted cred def "+ s);
 
             } catch (InterruptedException e) {
@@ -209,6 +332,160 @@ public class Endorser extends Agent {
         }
         return null;
     }
+    public CredDefStructure IssuerCreateStoreAndPublishCredDefOnSovrin(String credDefTag,boolean supportRevocation,String schemaID,String taaDigest,
+                                                               String taaAcceptanceMechanism, Long acceptanceTimestamp){
+        String credDefId,credDefJson,credDefRequest;
+        CredDefStructure credDefStructure;
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credDefResult = null;
+        String credDefConfigJson =IndyJsonStringBuilder.typeSpecificConfigCredDef(supportRevocation);
+        //search for schemaJson
+        String schemaJson;
+        String appendedTTARequest;
+        SchemaStructure schemaStructure=this.SchemaCollection.get(schemaID);
+        Long preSubmit,postSubmit;
+        if (schemaStructure!=null)
+            schemaJson=schemaStructure.schemaJson;
+        else
+            schemaJson=getSchemaFromLedger(schemaID);
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult createCredDefResult;
+        try {
+            String getSchemaRequest=Ledger.buildGetSchemaRequest(this.mainDID.didName,
+                    schemaID).get();//la differenza tra metodo per creare e ottenere è 'GET'
+            //System.out.println("schema id -ed- "+schemaID);
+            pre=System.currentTimeMillis();
+            String s=Ledger.submitRequest(this.poolConnection,getSchemaRequest).get();
+            post =System.currentTimeMillis();
+            System.out.println("GET SCHEMA ON SOVRIN pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
+            //necessario parsare lo schema ottenuto in uno frienldy con AnonCreds API e issuer credential
+            LedgerResults.ParseResponseResult responseScheme = parseGetSchemaResponse(s).get();
+
+            schemaJson=responseScheme.getObjectJson();
+
+            System.out.println("is wallet null" + this.mainWallet == null);
+            //NOTE: the method issuerCreateAndStoreCredentialDef will encapsulate the secret keys for issuing cred
+            //and revoking credential,so that only the cred_def creator can issuer it and revoke it
+            //in this case we have verkey+ pair of keys of signign, different from the one used to authenticate the
+            //issuer DID
+            System.out.println(schemaJson);
+            credDefResult=
+                    Anoncreds.issuerCreateAndStoreCredentialDef(this.mainWallet, this.mainDID.didName, schemaJson, credDefTag, null,   credDefConfigJson).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return null;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return null;
+        }
+        if(credDefResult!=null) {
+            credDefId = credDefResult.getCredDefId();
+            credDefJson = credDefResult.getCredDefJson();
+            //System.out.println("cred ded json"+ credDefJson);
+
+            //publish credef
+            try {
+
+                credDefRequest = Ledger.buildCredDefRequest(this.mainDID.didName,credDefJson).get();
+                //System.out.println("\ncred def def "+credDefRequest);
+                appendedTTARequest = appendTxnAuthorAgreementAcceptanceToRequest(credDefRequest, null, null, taaDigest,
+                        taaAcceptanceMechanism, acceptanceTimestamp).get();
+                preSubmit=System.currentTimeMillis();
+                String s=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,appendedTTARequest).get();
+                //System.out.println("string submitted cred def "+ s);
+                postSubmit=System.currentTimeMillis();
+                System.out.println("Credential Definition on Sovrin presubmit: "+ preSubmit + " postsubmit: "+postSubmit +
+                        " delta:"+ (postSubmit-preSubmit) );
+                System.out.println("result of transaction create cred def: \n"+s);
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                return null;
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+                return null;
+            } catch (IndyException e) {
+                e.printStackTrace();
+                return null;
+            }
+            //storing credef structure
+            credDefStructure = new CredDefStructure(credDefId,credDefJson);
+            this.CredDefsCollection.put(credDefId,credDefStructure);
+
+            return credDefStructure;
+        }
+        return null;
+    }
+
+    public CredDefStructure IssuerCreateStoreAndPublishPrefinedSchemaCredDefOnSovrin(String credDefTag,boolean supportRevocation,String schemaID,String taaDigest,
+                                                                       String taaAcceptanceMechanism, Long acceptanceTimestamp,String schemaJson){
+        String credDefId,credDefJson,credDefRequest;
+        CredDefStructure credDefStructure;
+        AnoncredsResults.IssuerCreateAndStoreCredentialDefResult credDefResult = null;
+        String credDefConfigJson =IndyJsonStringBuilder.typeSpecificConfigCredDef(supportRevocation);
+        //search for schemaJson
+        String appendedTTARequest;
+        SchemaStructure schemaStructure=this.SchemaCollection.get(schemaID);
+        Long preSubmit,postSubmit;
+        try {
+            System.out.println("is wallet null" + this.mainWallet == null);
+            //NOTE: the method issuerCreateAndStoreCredentialDef will encapsulate the secret keys for issuing cred
+            //and revoking credential,so that only the cred_def creator can issuer it and revoke it
+            //in this case we have verkey+ pair of keys of signign, different from the one used to authenticate the
+            //issuer DID
+            credDefResult=
+                    Anoncreds.issuerCreateAndStoreCredentialDef(this.mainWallet, this.mainDID.didName, schemaJson, credDefTag, null,   credDefConfigJson).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return null;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            return null;
+        } catch (IndyException e) {
+            e.printStackTrace();
+            return null;
+        }
+        if(credDefResult!=null) {
+            credDefId = credDefResult.getCredDefId();
+            credDefJson = credDefResult.getCredDefJson();
+            //System.out.println("cred ded json"+ credDefJson);
+
+            //publish credef
+            try {
+
+                credDefRequest = Ledger.buildCredDefRequest(this.mainDID.didName,credDefJson).get();
+                //System.out.println("\ncred def def "+credDefRequest);
+                appendedTTARequest = appendTxnAuthorAgreementAcceptanceToRequest(credDefRequest, null, null, taaDigest,
+                        taaAcceptanceMechanism, acceptanceTimestamp).get();
+                preSubmit=System.currentTimeMillis();
+                String s=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,appendedTTARequest).get();
+                //System.out.println("string submitted cred def "+ s);
+                postSubmit=System.currentTimeMillis();
+                System.out.println("Credential Definition on Sovrin presubmit: "+ preSubmit + " postsubmit: "+postSubmit +
+                        " delta:"+ (postSubmit-preSubmit) );
+                System.out.println("result of transaction create cred def: \n"+s);
+
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                return null;
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+                return null;
+            } catch (IndyException e) {
+                e.printStackTrace();
+                return null;
+            }
+            //storing credef structure
+            credDefStructure = new CredDefStructure(credDefId,credDefJson);
+            this.CredDefsCollection.put(credDefId,credDefStructure);
+
+            return credDefStructure;
+        }
+        return null;
+    }
+
     //return credential offer to prover
     //Create a Credential Offer fetching a credential definition from the Issuer Wallet, Indy provides the
     //schema_ID, cred_def_id and key correcteness proof about the cred_def_id, additionally in this implementation
@@ -462,11 +739,16 @@ public class Endorser extends Agent {
     //1)first thing to do after creation
     public String revocationRegistryEntryPublishDelta(RevocationRegistryObject revRegObj){
         String reqToSend,ris;
+        long pre,post;
         try {
              reqToSend=Ledger.buildRevocRegEntryRequest(this.mainDID.didName,revRegObj.revRegId,"CL_ACCUM",
                     revRegObj.revRegEntryJson).get();
+             pre=System.currentTimeMillis();
             ris=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,
                     reqToSend).get();
+            post =System.currentTimeMillis();
+            System.out.println("RegEntryRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             return ris;
         } catch (IndyException e) {
             e.printStackTrace();
@@ -480,10 +762,14 @@ public class Endorser extends Agent {
     //2)getting accum from the ledger
     public String getRevocRegReqGetAccum(RevocationRegistryObject revocationRegistryObject,long timestamp){
         String request,response;
+        long pre,post;
         try {
             request=Ledger.buildGetRevocRegRequest(mainDID.didName, revocationRegistryObject.revRegId,
                     timestamp).get();
+            pre = System.currentTimeMillis();
             response = Ledger.submitRequest(this.poolConnection, request).get();
+            post = System.currentTimeMillis();
+            System.out.println("GetRevocRegRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
             LedgerResults.ParseRegistryResponseResult resultAfterCreatingRevDef = Ledger.parseGetRevocRegResponse(response).get();
             System.out.println("Accum Value at (after creating rev def): " + timestamp + "\n" +  resultAfterCreatingRevDef.getObjectJson() + "\n");
             return resultAfterCreatingRevDef.getObjectJson();
@@ -504,8 +790,11 @@ public class Endorser extends Agent {
         try {
             reqToSend=Ledger.buildRevocRegEntryRequest(this.mainDID.didName,revID,"CL_ACCUM",
                     delta).get();
+            pre = System.currentTimeMillis();
             ris=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName,
                     reqToSend).get();
+            post = System.currentTimeMillis();
+            System.out.println("RegistryEntryPublishDelta pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
             return ris;
         } catch (IndyException e) {
             e.printStackTrace();
@@ -532,8 +821,12 @@ public class Endorser extends Agent {
                     revocationRegistryObject.revRegId,credentialToRevoke_cred_revoc_ID).get();
             request=Ledger.buildRevocRegEntryRequest(this.mainDID.didName,
                     revocationRegistryObject.revRegId, "CL_ACCUM", newDeltaPostRevoc).get();
+            pre=System.currentTimeMillis();
             response= Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,this.mainDID.didName, request).
                     get();
+            post = System.currentTimeMillis();
+            System.out.println("RevocRegEntryRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             System.out.println("The issuer has revoked the credential and published the new accum delta on the ledger\n" + response + "\n");
             return newDeltaPostRevoc;
         } catch (IndyException e) {
@@ -555,9 +848,12 @@ public class Endorser extends Agent {
         try {
             request=Ledger.buildGetRevocRegDeltaRequest(this.mainDID.didName,revRegObj.revRegId,from,to).get();
             System.out.println("request form "+request);
-
+            pre = System.currentTimeMillis();
             response=Ledger.signAndSubmitRequest(this.poolConnection,this.mainWallet,
                     this.mainDID.didName,request).get();
+            post = System.currentTimeMillis();
+            System.out.println("GetRevocRegDeltaRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
+
             System.out.println("debug response " + response);
             LedgerResults.ParseRegistryResponseResult parseRegistryResponseResult=
                     parseGetRevocRegDeltaResponse(response).get();
@@ -603,29 +899,10 @@ public class Endorser extends Agent {
         try {
             attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
                     , null, raw,null).get();
+            pre = System.currentTimeMillis();
             attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
-            System.out.println("addAttribute Response : "+ attribResponse);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return false;
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-            return false;
-        } catch (IndyException e) {
-            e.printStackTrace();
-            return false;
-        }
-        return true;
-    }
-    public boolean addENdpointToNYM(String endpointName,String endpointAddres){
-        String attribReq, attribResponse;
-        String raw = IndyJsonStringBuilder.endpointJson(endpointName,endpointAddres);
-        try {
-            //buildAttribRequest(String submitterDid,String targetDid, String hash, String raw, String enc )
-            attribReq = Ledger.buildAttribRequest(mainDID.didName,mainDID.didName
-                    , null, raw,null).get();
-            //signAndSubmitRequest(Pool pool,Wallet wallet,String submitterDid,String requestJson)
-            attribResponse = signAndSubmitRequest(poolConnection, this.mainWallet, this.mainDID.didName, attribReq).get();
+            post = System.currentTimeMillis();
+            System.out.println("AttribRequest pre: "+pre+" post:"+ post+" delta: "+ (post-pre));
             System.out.println("addAttribute Response : "+ attribResponse);
         } catch (InterruptedException e) {
             e.printStackTrace();
